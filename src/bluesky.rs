@@ -1,6 +1,7 @@
-use crate::atproto::{Client, GetError, Session};
+use crate::atproto::{Client, GetError, PostError, Session};
 use crate::lexicon::app::bsky::actor::ProfileViewDetailed;
-use crate::lexicon::app::bsky::feed::{AuthorFeed, FeedViewPost};
+use crate::lexicon::app::bsky::feed::{AuthorFeed, FeedViewPost, Post};
+use crate::lexicon::com::atproto::repo::CreateRecordOutput;
 use crate::storage::Storage;
 
 pub struct Bluesky<T: Storage<Session>> {
@@ -17,7 +18,17 @@ impl<T: Storage<Session>> Bluesky<T> {
         actor: &str,
     ) -> Result<ProfileViewDetailed, GetError<T>> {
         self.client
-            .xrpc_get::<ProfileViewDetailed>("app.bsky.actor.getProfile", Some(&[("actor", actor)]))
+            .xrpc_get("app.bsky.actor.getProfile", Some(&[("actor", actor)]))
+            .await
+    }
+
+    pub async fn feed_post(
+        &mut self,
+        repo: &str,
+        post: Post,
+    ) -> Result<CreateRecordOutput, PostError<T>> {
+        self.client
+            .repo_create_record(repo, "app.bsky.feed.post", &post)
             .await
     }
 

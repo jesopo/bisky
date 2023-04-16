@@ -1,6 +1,6 @@
-use super::storage::Storage;
-use crate::lexicon::com::atproto::repo::{GetRecord, ListRecords};
+use crate::lexicon::com::atproto::repo::{CreateRecord, GetRecord, ListRecords};
 use crate::lexicon::com::atproto::server::{CreateSession, RefreshSession};
+use crate::storage::Storage;
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -48,7 +48,7 @@ impl From<RefreshSession> for Session {
 pub struct Client<T: Storage<Session>> {
     service: reqwest::Url,
     storage: T,
-    session: Session,
+    pub session: Session,
 }
 
 trait GetService {
@@ -270,6 +270,7 @@ impl<T: Storage<Session>> Client<T> {
         ) -> reqwest::RequestBuilder {
             reqwest::Client::new()
                 .post(self_.get_service().join(&format!("xrpc/{path}")).unwrap())
+                .header("content-type", "application/json")
                 .header("authorization", format!("Bearer {}", self_.access_token()))
                 .body(body.to_string())
         }
@@ -323,5 +324,22 @@ impl<T: Storage<Session>> Client<T> {
         self.xrpc_get::<ListRecords<D>>("com.atproto.repo.listRecords", Some(&query))
             .await
             .map(|l| l.records.into_iter().map(|r| r.value).collect())
+    }
+
+    pub async fn repo_create_record<D: DeserializeOwned, S: Serialize>(
+        &mut self,
+        repo: &str,
+        collection: &str,
+        record: S,
+    ) -> Result<D, PostError<T>> {
+        self.xrpc_post(
+            "com.atproto.repo.createRecord",
+            &CreateRecord {
+                repo,
+                collection,
+                record,
+            },
+        )
+        .await
     }
 }

@@ -1,9 +1,10 @@
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Post {
     #[serde(rename(deserialize = "createdAt"))]
+    #[serde(rename(serialize = "createdAt"))]
     pub created_at: DateTime<Utc>,
     pub text: String,
 }
