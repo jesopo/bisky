@@ -2,8 +2,12 @@
 name = "bisky"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "MIT"
+description = "Bluesky API library"
+homepage = "https://github.com/jesopo/bisky"
+documentation = "https://docs.rs/bisky/"
+repository = "https://github.com/jesopo/bisky"
+readme = "README.md"
 
 [dependencies]
 async-trait = "0.1.68"
