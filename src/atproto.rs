@@ -1,4 +1,4 @@
-use crate::lexicon::com::atproto::repo::{CreateRecord, GetRecord, ListRecords};
+use crate::lexicon::com::atproto::repo::{CreateRecord, ListRecordsOutput, Record};
 use crate::lexicon::com::atproto::server::{CreateSession, RefreshSession};
 use crate::storage::Storage;
 
@@ -297,33 +297,54 @@ impl<T: Storage<Session>> Client<T> {
         repo: &str,
         collection: &str,
         rkey: Option<&str>,
-    ) -> Result<D, GetError<T>> {
+    ) -> Result<Record<D>, GetError<T>> {
         let mut query = vec![("repo", repo), ("collection", collection)];
 
         if let Some(rkey) = rkey {
             query.push(("rkey", rkey));
         }
 
-        self.xrpc_get::<GetRecord<D>>("com.atproto.repo.getRecord", Some(&query))
+        self.xrpc_get("com.atproto.repo.getRecord", Some(&query))
             .await
-            .map(|r| r.value)
     }
 
     pub async fn repo_list_records<D: DeserializeOwned>(
         &mut self,
         repo: &str,
         collection: &str,
-        rkey: Option<&str>,
-    ) -> Result<Vec<D>, GetError<T>> {
-        let mut query = vec![("repo", repo), ("collection", collection)];
+        mut limit: usize,
+    ) -> Result<Vec<Record<D>>, GetError<T>> {
+        let mut records = Vec::new();
+        let mut cursor: Option<String> = None;
 
-        if let Some(rkey) = rkey {
-            query.push(("rkey", rkey));
+        while limit > 0 {
+            let query_limit = std::cmp::min(limit, 100).to_string();
+            let mut query = Vec::from([
+                ("repo", repo),
+                ("collection", collection),
+                ("limit", &query_limit),
+            ]);
+
+            if let Some(cursor) = cursor.as_ref() {
+                query.push(("cursor", cursor));
+            }
+
+            let mut response = self
+                .xrpc_get::<ListRecordsOutput<D>>("com.atproto.repo.listRecords", Some(&query))
+                .await?;
+
+            if response.records.is_empty() {
+                // caller requested more records than are available
+                break;
+            }
+
+            limit -= response.records.len();
+
+            cursor = response.cursor.take();
+            records.append(&mut response.records);
         }
 
-        self.xrpc_get::<ListRecords<D>>("com.atproto.repo.listRecords", Some(&query))
-            .await
-            .map(|l| l.records.into_iter().map(|r| r.value).collect())
+        Ok(records)
     }
 
     pub async fn repo_create_record<D: DeserializeOwned, S: Serialize>(

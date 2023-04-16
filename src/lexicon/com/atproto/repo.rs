@@ -1,16 +1,16 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize)]
-pub struct GetRecord<T> {
+#[derive(Debug, Deserialize)]
+pub struct Record<T> {
     pub uri: String,
     pub cid: String,
     pub value: T,
 }
 
 #[derive(Deserialize)]
-pub struct ListRecords<T> {
+pub struct ListRecordsOutput<T> {
     pub cursor: Option<String>,
-    pub records: Vec<GetRecord<T>>,
+    pub records: Vec<Record<T>>,
 }
 
 #[derive(Serialize)]
