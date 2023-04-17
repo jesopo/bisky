@@ -76,7 +76,7 @@ pub struct ApiError {
 pub enum LoginError<T: Storage<Session>> {
     Reqwest(reqwest::Error),
     Api(ApiError),
-    AuthenticationRequired(String),
+    BadCredentials,
     Storage(T::Error),
 }
 
@@ -169,7 +169,9 @@ impl<T: Storage<Session>> Client<T> {
             .send()
             .await?;
 
-        if response.status() != reqwest::StatusCode::OK {
+        if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(LoginError::BadCredentials);
+        } else if response.status() == reqwest::StatusCode::BAD_REQUEST {
             return Err(LoginError::Api(response.json::<ApiError>().await?));
         };
 
