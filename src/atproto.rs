@@ -240,7 +240,7 @@ impl<T: Storage<Session>> Client<T> {
 
         let mut response = make_request(self, path, &query).send().await?;
 
-        if let reqwest::StatusCode::BAD_REQUEST = response.status() {
+        if response.status() == reqwest::StatusCode::BAD_REQUEST {
             let error = response.json::<ApiError>().await?;
             if error.error == "ExpiredToken" {
                 self.xrpc_refresh_token().await?;
@@ -274,7 +274,7 @@ impl<T: Storage<Session>> Client<T> {
 
         let mut response = make_request(self, path, &body).send().await?;
 
-        if let reqwest::StatusCode::BAD_REQUEST = response.status() {
+        if response.status() == reqwest::StatusCode::BAD_REQUEST {
             let error = response.json::<ApiError>().await?;
             if error.error == "ExpiredToken" {
                 self.xrpc_refresh_token().await?;
