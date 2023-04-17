@@ -37,13 +37,11 @@ async fn main() {
     println!(
         "{:#?}",
         client
-            .feed_post(
-                &args.username,
-                Post {
-                    text: args.post_text,
-                    created_at: chrono::Utc::now(),
-                }
-            )
+            .me()
+            .post(Post {
+                text: args.post_text,
+                created_at: chrono::Utc::now(),
+            })
             .await
             .unwrap()
     );

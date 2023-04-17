@@ -20,7 +20,7 @@ pub struct CreateRecord<'a, T> {
     pub record: T,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct CreateRecordOutput {
     pub cid: String,
     pub uri: String,

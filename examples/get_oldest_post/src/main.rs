@@ -30,10 +30,7 @@ async fn main() {
     }
 
     let mut client = Bluesky::new(Client::new(args.service, storage).await.unwrap());
-
-    let posts = client
-        .feed_get_author_feed(&args.username, usize::MAX)
-        .await
-        .unwrap();
+    let mut user = client.user(args.username);
+    let posts = user.list_posts().await.unwrap();
     println!("oldest post: {:#?}", posts.last().unwrap());
 }

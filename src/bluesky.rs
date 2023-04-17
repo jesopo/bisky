@@ -1,11 +1,46 @@
 use crate::atproto::{Client, GetError, PostError, Session};
 use crate::lexicon::app::bsky::actor::ProfileViewDetailed;
-use crate::lexicon::app::bsky::feed::{AuthorFeed, FeedViewPost, Post};
-use crate::lexicon::com::atproto::repo::CreateRecordOutput;
+use crate::lexicon::app::bsky::feed::Post;
+use crate::lexicon::com::atproto::repo::{CreateRecordOutput, Record};
 use crate::storage::Storage;
 
 pub struct Bluesky<T: Storage<Session>> {
     client: Client<T>,
+}
+
+pub struct BlueskyMe<'a, T: Storage<Session>> {
+    client: &'a mut Client<T>,
+    username: String,
+}
+
+impl<'a, T: Storage<Session>> BlueskyMe<'a, T> {
+    pub async fn post(&mut self, post: Post) -> Result<CreateRecordOutput, PostError<T>> {
+        self.client
+            .repo_create_record(&self.username, "app.bsky.feed.post", &post)
+            .await
+    }
+}
+
+pub struct BlueskyUser<'a, T: Storage<Session>> {
+    client: &'a mut Client<T>,
+    username: String,
+}
+
+impl<'a, T: Storage<Session>> BlueskyUser<'a, T> {
+    pub async fn get_profile(&mut self) -> Result<ProfileViewDetailed, GetError<T>> {
+        self.client
+            .xrpc_get(
+                "app.bsky.actor.getProfile",
+                Some(&[("actor", &self.username)]),
+            )
+            .await
+    }
+
+    pub async fn list_posts(&mut self) -> Result<Vec<Record<Post>>, GetError<T>> {
+        self.client
+            .repo_list_records(&self.username, "app.bsky.feed.post", usize::MAX)
+            .await
+    }
 }
 
 impl<T: Storage<Session>> Bluesky<T> {
@@ -13,58 +48,17 @@ impl<T: Storage<Session>> Bluesky<T> {
         Self { client }
     }
 
-    pub async fn actor_get_profile(
-        &mut self,
-        actor: &str,
-    ) -> Result<ProfileViewDetailed, GetError<T>> {
-        self.client
-            .xrpc_get("app.bsky.actor.getProfile", Some(&[("actor", actor)]))
-            .await
-    }
-
-    pub async fn feed_post(
-        &mut self,
-        repo: &str,
-        post: Post,
-    ) -> Result<CreateRecordOutput, PostError<T>> {
-        self.client
-            .repo_create_record(repo, "app.bsky.feed.post", &post)
-            .await
-    }
-
-    pub async fn feed_get_author_feed(
-        &mut self,
-        author: &str,
-        mut limit: usize,
-    ) -> Result<Vec<FeedViewPost>, GetError<T>> {
-        let mut feed = Vec::new();
-
-        let mut cursor: Option<String> = None;
-
-        while limit > 0 {
-            let query_limit = std::cmp::min(limit, 100).to_string();
-            let mut query = Vec::from([("actor", author), ("limit", &query_limit)]);
-
-            if let Some(cursor) = cursor.as_ref() {
-                query.push(("cursor", cursor));
-            }
-
-            let mut subset = self
-                .client
-                .xrpc_get::<AuthorFeed>("app.bsky.feed.getAuthorFeed", Some(&query))
-                .await?;
-
-            cursor = subset.cursor.take();
-
-            if subset.feed.is_empty() {
-                // caller requested more posts than are available
-                break;
-            }
-
-            limit -= subset.feed.len();
-            feed.append(&mut subset.feed);
+    pub fn user(&mut self, username: String) -> BlueskyUser<T> {
+        BlueskyUser {
+            client: &mut self.client,
+            username,
         }
+    }
 
-        Ok(feed)
+    pub fn me(&mut self) -> BlueskyMe<T> {
+        BlueskyMe {
+            username: self.client.session.did.to_string(),
+            client: &mut self.client,
+        }
     }
 }
