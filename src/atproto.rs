@@ -158,6 +158,7 @@ impl<T: Storage<Session>> Client<T> {
                     .join("xrpc/com.atproto.server.createSession")
                     .unwrap(),
             )
+            .header("content-type", "application/json")
             .body(
                 json!({
                     "identifier": identifier,
@@ -168,12 +169,8 @@ impl<T: Storage<Session>> Client<T> {
             .send()
             .await?;
 
-        match response.status() {
-            reqwest::StatusCode::UNAUTHORIZED => {
-                return Err(LoginError::Api(response.json::<ApiError>().await?));
-            }
-            reqwest::StatusCode::OK => {}
-            _ => unreachable!(),
+        if response.status() != reqwest::StatusCode::OK {
+            return Err(LoginError::Api(response.json::<ApiError>().await?));
         };
 
         let body = response.json::<CreateSession>().await?.into();
