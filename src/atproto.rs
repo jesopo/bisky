@@ -312,15 +312,19 @@ impl<T: Storage<Session>> Client<T> {
         repo: &str,
         collection: &str,
         mut limit: usize,
-    ) -> Result<Vec<Record<D>>, GetError<T>> {
+        reverse: bool,
+        mut cursor: Option<String>,
+    ) -> Result<(Vec<Record<D>>, Option<String>), GetError<T>> {
+        let reverse = reverse.to_string();
+
         let mut records = Vec::new();
-        let mut cursor: Option<String> = None;
 
         while limit > 0 {
             let query_limit = std::cmp::min(limit, 100).to_string();
             let mut query = Vec::from([
                 ("repo", repo),
                 ("collection", collection),
+                ("reverse", &reverse),
                 ("limit", &query_limit),
             ]);
 
@@ -343,7 +347,7 @@ impl<T: Storage<Session>> Client<T> {
             records.append(&mut response.records);
         }
 
-        Ok(records)
+        Ok((records, cursor))
     }
 
     pub async fn repo_create_record<D: DeserializeOwned, S: Serialize>(
