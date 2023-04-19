@@ -5,6 +5,8 @@ use crate::storage::Storage;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::collections::VecDeque;
+use std::time::Duration;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Jwt {
@@ -290,6 +292,61 @@ impl<T: Storage<Session>> Client<T> {
     }
 }
 
+pub struct RecordStream<'a, T: Storage<Session>, D: DeserializeOwned> {
+    client: &'a mut Client<T>,
+    repo: &'a str,
+    collection: &'a str,
+    queue: VecDeque<Record<D>>,
+    cursor: String,
+}
+
+#[derive(Debug)]
+pub enum StreamError<T: Storage<Session>> {
+    Get(GetError<T>),
+    NoCursor,
+}
+
+impl<T: Storage<Session>> From<GetError<T>> for StreamError<T> {
+    fn from(error: GetError<T>) -> Self {
+        Self::Get(error)
+    }
+}
+
+impl<'a, T: Storage<Session>, D: DeserializeOwned> RecordStream<'a, T, D> {
+    pub async fn next(&mut self) -> Result<Record<D>, StreamError<T>> {
+        if let Some(record) = self.queue.pop_front() {
+            Ok(record)
+        } else {
+            loop {
+                let (records, cursor) = self
+                    .client
+                    .repo_list_records(
+                        self.repo,
+                        self.collection,
+                        100,
+                        true,
+                        Some(self.cursor.clone()),
+                    )
+                    .await?;
+
+                let mut records = VecDeque::from(records);
+                if let Some(first_record) = records.pop_front() {
+                    if let Some(cursor) = cursor {
+                        self.cursor = cursor;
+                    } else {
+                        return Err(StreamError::NoCursor);
+                    }
+
+                    self.queue.append(&mut records);
+                    return Ok(first_record);
+                } else {
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+            }
+        }
+    }
+}
+
 impl<T: Storage<Session>> Client<T> {
     pub async fn repo_get_record<D: DeserializeOwned>(
         &mut self,
@@ -365,5 +422,27 @@ impl<T: Storage<Session>> Client<T> {
             },
         )
         .await
+    }
+
+    pub async fn repo_stream_records<'a, D: DeserializeOwned>(
+        &'a mut self,
+        repo: &'a str,
+        collection: &'a str,
+    ) -> Result<RecordStream<'a, T, D>, StreamError<T>> {
+        let (_, cursor) = self
+            .repo_list_records::<D>(repo, collection, 1, false, None)
+            .await?;
+
+        if let Some(cursor) = cursor {
+            Ok(RecordStream {
+                client: self,
+                repo,
+                collection,
+                queue: VecDeque::new(),
+                cursor,
+            })
+        } else {
+            Err(StreamError::NoCursor)
+        }
     }
 }
