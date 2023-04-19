@@ -430,7 +430,7 @@ impl<T: Storage<Session>> Client<T> {
         collection: &'a str,
     ) -> Result<RecordStream<'a, T, D>, StreamError<T>> {
         let (_, cursor) = self
-            .repo_list_records::<D>(repo, collection, 1, false, None)
+            .repo_list_records::<D>(repo, collection, 15, false, None)
             .await?;
 
         if let Some(cursor) = cursor {
