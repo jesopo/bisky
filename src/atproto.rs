@@ -340,7 +340,7 @@ impl<'a, T: Storage<Session>, D: DeserializeOwned> RecordStream<'a, T, D> {
                     self.queue.append(&mut records);
                     return Ok(first_record);
                 } else {
-                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    tokio::time::sleep(Duration::from_secs(15)).await;
                 }
             }
         }
@@ -430,7 +430,7 @@ impl<T: Storage<Session>> Client<T> {
         collection: &'a str,
     ) -> Result<RecordStream<'a, T, D>, StreamError<T>> {
         let (_, cursor) = self
-            .repo_list_records::<D>(repo, collection, 15, false, None)
+            .repo_list_records::<D>(repo, collection, 1, false, None)
             .await?;
 
         if let Some(cursor) = cursor {
