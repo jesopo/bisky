@@ -10,8 +10,8 @@ use std::time::Duration;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Jwt {
-    access: String,
-    refresh: String,
+    pub access: String,
+    pub refresh: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
