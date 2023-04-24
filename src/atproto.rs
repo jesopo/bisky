@@ -221,7 +221,7 @@ impl<T: Storage<Session>> Client<T> {
         }
     }
 
-    pub(crate) async fn xrpc_get<D: DeserializeOwned>(
+    pub async fn xrpc_get<D: DeserializeOwned>(
         &mut self,
         path: &str,
         query: Option<&[(&str, &str)]>,
@@ -257,7 +257,7 @@ impl<T: Storage<Session>> Client<T> {
         Ok(response.error_for_status()?.json().await?)
     }
 
-    pub(crate) async fn xrpc_post<D1: Serialize, D2: DeserializeOwned>(
+    pub async fn xrpc_post<D1: Serialize, D2: DeserializeOwned>(
         &mut self,
         path: &str,
         body: &D1,
