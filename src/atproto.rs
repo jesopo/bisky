@@ -49,7 +49,7 @@ impl From<RefreshSession> for Session {
 }
 
 pub struct Client<T: Storage<Session>> {
-    service: Url,
+    pub service: Url,
     storage: T,
     pub session: Session,
 }
