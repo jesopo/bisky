@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::VecDeque;
 use std::time::Duration;
+use url::Url;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Jwt {
@@ -48,18 +49,18 @@ impl From<RefreshSession> for Session {
 }
 
 pub struct Client<T: Storage<Session>> {
-    service: reqwest::Url,
+    service: Url,
     storage: T,
     pub session: Session,
 }
 
 trait GetService {
-    fn get_service(&self) -> &reqwest::Url;
+    fn get_service(&self) -> &Url;
     fn access_token(&self) -> &str;
 }
 
 impl<T: Storage<Session>> GetService for Client<T> {
-    fn get_service(&self) -> &reqwest::Url {
+    fn get_service(&self) -> &Url {
         &self.service
     }
 
@@ -149,17 +150,16 @@ impl<T: Storage<Session>> From<serde_json::Error> for PostError<T> {
 
 impl<T: Storage<Session>> Client<T> {
     pub async fn login(
-        service: &reqwest::Url,
+        service: &Url,
         identifier: &str,
         password: &str,
         storage: &mut T,
     ) -> Result<(), LoginError<T>> {
+        let mut url = service.clone();
+        url.set_path("xrpc/com.atproto.server.createSession");
+
         let response = reqwest::Client::new()
-            .post(
-                service
-                    .join("xrpc/com.atproto.server.createSession")
-                    .unwrap(),
-            )
+            .post(url)
             .header("content-type", "application/json")
             .body(
                 json!({
@@ -186,7 +186,7 @@ impl<T: Storage<Session>> Client<T> {
         }
     }
 
-    pub async fn new(service: reqwest::Url, mut storage: T) -> Result<Self, T::Error> {
+    pub async fn new(service: Url, mut storage: T) -> Result<Self, T::Error> {
         Ok(Self {
             service,
             session: storage.get().await?,
@@ -195,12 +195,11 @@ impl<T: Storage<Session>> Client<T> {
     }
 
     async fn xrpc_refresh_token(&mut self) -> Result<(), RefreshError<T>> {
+        let mut url = self.service.clone();
+        url.set_path("xrpc/com.atproto.server.refreshSession");
+
         let response = reqwest::Client::new()
-            .post(
-                self.service
-                    .join("xrpc/com.atproto.server.refreshSession")
-                    .unwrap(),
-            )
+            .post(url)
             .header(
                 "authorization",
                 format!("Bearer {}", self.session.jwt.refresh),
@@ -226,13 +225,16 @@ impl<T: Storage<Session>> Client<T> {
         path: &str,
         query: Option<&[(&str, &str)]>,
     ) -> Result<D, GetError<T>> {
+        let mut url = self.service.clone();
+        url.set_path(&format!("xrpc/{path}"));
+
         fn make_request<T: GetService>(
             self_: &T,
-            path: &str,
+            url: Url,
             query: &Option<&[(&str, &str)]>,
         ) -> reqwest::RequestBuilder {
             let mut request = reqwest::Client::new()
-                .get(self_.get_service().join(&format!("xrpc/{path}")).unwrap())
+                .get(url)
                 .header("authorization", format!("Bearer {}", self_.access_token()));
 
             if let Some(query) = query {
@@ -242,13 +244,13 @@ impl<T: Storage<Session>> Client<T> {
             request
         }
 
-        let mut response = make_request(self, path, &query).send().await?;
+        let mut response = make_request(self, url.clone(), &query).send().await?;
 
         if response.status() == reqwest::StatusCode::BAD_REQUEST {
             let error = response.json::<ApiError>().await?;
             if error.error == "ExpiredToken" {
                 self.xrpc_refresh_token().await?;
-                response = make_request(self, path, &query).send().await?;
+                response = make_request(self, url, &query).send().await?;
             } else {
                 return Err(GetError::Api(error));
             }
@@ -263,26 +265,24 @@ impl<T: Storage<Session>> Client<T> {
         body: &D1,
     ) -> Result<D2, PostError<T>> {
         let body = serde_json::to_string(body)?;
+        let mut url = self.service.clone();
+        url.set_path(&format!("xrpc/{path}"));
 
-        fn make_request<T: GetService>(
-            self_: &T,
-            path: &str,
-            body: &str,
-        ) -> reqwest::RequestBuilder {
+        fn make_request<T: GetService>(self_: &T, url: Url, body: &str) -> reqwest::RequestBuilder {
             reqwest::Client::new()
-                .post(self_.get_service().join(&format!("xrpc/{path}")).unwrap())
+                .post(url)
                 .header("content-type", "application/json")
                 .header("authorization", format!("Bearer {}", self_.access_token()))
                 .body(body.to_string())
         }
 
-        let mut response = make_request(self, path, &body).send().await?;
+        let mut response = make_request(self, url.clone(), &body).send().await?;
 
         if response.status() == reqwest::StatusCode::BAD_REQUEST {
             let error = response.json::<ApiError>().await?;
             if error.error == "ExpiredToken" {
                 self.xrpc_refresh_token().await?;
-                response = make_request(self, path, &body).send().await?;
+                response = make_request(self, url, &body).send().await?;
             } else {
                 return Err(PostError::Api(error));
             }
