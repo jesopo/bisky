@@ -1,33 +1,28 @@
-use crate::atproto::{Client, GetError, PostError, RecordStream, Session, StreamError};
+use crate::atproto::{Client, RecordStream, StreamError};
 use crate::lexicon::app::bsky::actor::ProfileViewDetailed;
 use crate::lexicon::app::bsky::feed::Post;
-use crate::lexicon::com::atproto::repo::{CreateRecordOutput, Record};
-use crate::storage::Storage;
+use crate::lexicon::com::atproto::repo::{Record};
+use crate::errors::BiskyError;
 
-pub struct Bluesky<T: Storage<Session>> {
-    client: Client<T>,
+#[derive(Debug)]
+pub struct Bluesky {
+    client: Client,
 }
 
-pub struct BlueskyMe<'a, T: Storage<Session>> {
-    client: &'a mut Client<T>,
+#[derive(Debug)]
+pub struct BlueskyMe<'a> {
+    client: &'a mut Client,
     username: String,
 }
 
-impl<'a, T: Storage<Session>> BlueskyMe<'a, T> {
-    pub async fn post(&mut self, post: Post) -> Result<CreateRecordOutput, PostError<T>> {
-        self.client
-            .repo_create_record(&self.username, "app.bsky.feed.post", &post)
-            .await
-    }
-}
-
-pub struct BlueskyUser<'a, T: Storage<Session>> {
-    client: &'a mut Client<T>,
+#[derive(Debug)]
+pub struct BlueskyUser<'a> {
+    client: &'a mut Client,
     username: String,
 }
 
-impl<'a, T: Storage<Session>> BlueskyUser<'a, T> {
-    pub async fn get_profile(&mut self) -> Result<ProfileViewDetailed, GetError<T>> {
+impl BlueskyUser<'_> {
+    pub async fn get_profile(&mut self) -> Result<ProfileViewDetailed, BiskyError> {
         self.client
             .xrpc_get(
                 "app.bsky.actor.getProfile",
@@ -36,7 +31,7 @@ impl<'a, T: Storage<Session>> BlueskyUser<'a, T> {
             .await
     }
 
-    pub async fn list_posts(&mut self) -> Result<Vec<Record<Post>>, GetError<T>> {
+    pub async fn list_posts(&mut self) -> Result<Vec<Record<Post>>, BiskyError> {
         self.client
             .repo_list_records(
                 &self.username,
@@ -49,26 +44,26 @@ impl<'a, T: Storage<Session>> BlueskyUser<'a, T> {
             .map(|l| l.0)
     }
 
-    pub async fn stream_posts(&'a mut self) -> Result<RecordStream<'a, T, Post>, StreamError<T>> {
+    pub async fn stream_posts<'a>(&'a mut self) -> Result<RecordStream<'a, Post>, StreamError> {
         self.client
             .repo_stream_records(&self.username, "app.bsky.feed.post")
             .await
     }
 }
 
-impl<T: Storage<Session>> Bluesky<T> {
-    pub fn new(client: Client<T>) -> Self {
+impl Bluesky {
+    pub fn new(client: Client) -> Self {
         Self { client }
     }
 
-    pub fn user(&mut self, username: String) -> BlueskyUser<T> {
+    pub fn user(&mut self, username: String) -> BlueskyUser {
         BlueskyUser {
             client: &mut self.client,
             username,
         }
     }
 
-    pub fn me(&mut self) -> BlueskyMe<T> {
+    pub fn me(&mut self) -> BlueskyMe {
         BlueskyMe {
             username: self.client.session.did.to_string(),
             client: &mut self.client,

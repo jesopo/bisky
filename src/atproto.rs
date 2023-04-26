@@ -1,29 +1,27 @@
+
+use crate::errors::{BiskyError, ApiError};
 use crate::lexicon::com::atproto::repo::{CreateRecord, ListRecordsOutput, Record};
-use crate::lexicon::com::atproto::server::{CreateSession, RefreshSession};
-use crate::storage::Storage;
-
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
-use serde_json::json;
+use crate::lexicon::com::atproto::server::{CreateUserSession, RefreshUserSession};
+use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use std::collections::VecDeque;
+use serde_json::json;
 use std::time::Duration;
-use url::Url;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct Jwt {
-    pub access: String,
-    pub refresh: String,
+    access: String,
+    refresh: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Session {
+#[derive(Debug, Deserialize, Clone, Serialize)]
+pub struct UserSession {
     pub did: String,
     pub handle: String,
     pub jwt: Jwt,
 }
 
-impl From<CreateSession> for Session {
-    fn from(create: CreateSession) -> Self {
+impl From<CreateUserSession> for UserSession {
+    fn from(create: CreateUserSession) -> Self {
         Self {
             did: create.did,
             handle: create.handle,
@@ -35,8 +33,8 @@ impl From<CreateSession> for Session {
     }
 }
 
-impl From<RefreshSession> for Session {
-    fn from(refresh: RefreshSession) -> Self {
+impl From<RefreshUserSession> for UserSession {
+    fn from(refresh: RefreshUserSession) -> Self {
         Self {
             did: refresh.did,
             handle: refresh.handle,
@@ -48,19 +46,20 @@ impl From<RefreshSession> for Session {
     }
 }
 
-pub struct Client<T: Storage<Session>> {
-    pub service: Url,
-    storage: T,
-    pub session: Session,
+#[derive(Debug)]
+pub struct Client {
+    service: reqwest::Url,
+    pub session: UserSession,
 }
 
+
 trait GetService {
-    fn get_service(&self) -> &Url;
+    fn get_service(&self) -> &reqwest::Url;
     fn access_token(&self) -> &str;
 }
 
-impl<T: Storage<Session>> GetService for Client<T> {
-    fn get_service(&self) -> &Url {
+impl GetService for Client {
+    fn get_service(&self) -> &reqwest::Url {
         &self.service
     }
 
@@ -69,97 +68,20 @@ impl<T: Storage<Session>> GetService for Client<T> {
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct ApiError {
-    pub error: String,
-    pub message: String,
-}
+impl Client {
 
-#[derive(Debug)]
-pub enum LoginError<T: Storage<Session>> {
-    Reqwest(reqwest::Error),
-    Api(ApiError),
-    BadCredentials,
-    Storage(T::Error),
-}
-
-impl<T: Storage<Session>> From<reqwest::Error> for LoginError<T> {
-    fn from(e: reqwest::Error) -> Self {
-        Self::Reqwest(e)
-    }
-}
-
-#[derive(Debug)]
-pub enum RefreshError<T: Storage<Session>> {
-    Reqwest(reqwest::Error),
-    Storage(T::Error),
-    Api(ApiError),
-    Blank,
-}
-
-impl<T: Storage<Session>> From<reqwest::Error> for RefreshError<T> {
-    fn from(e: reqwest::Error) -> Self {
-        Self::Reqwest(e)
-    }
-}
-
-#[derive(Debug)]
-pub enum GetError<T: Storage<Session>> {
-    Reqwest(reqwest::Error),
-    Refresh(RefreshError<T>),
-    Api(ApiError),
-}
-
-impl<T: Storage<Session>> From<reqwest::Error> for GetError<T> {
-    fn from(e: reqwest::Error) -> Self {
-        Self::Reqwest(e)
-    }
-}
-
-impl<T: Storage<Session>> From<RefreshError<T>> for GetError<T> {
-    fn from(e: RefreshError<T>) -> Self {
-        Self::Refresh(e)
-    }
-}
-
-#[derive(Debug)]
-pub enum PostError<T: Storage<Session>> {
-    Reqwest(reqwest::Error),
-    Refresh(RefreshError<T>),
-    Json(serde_json::Error),
-    Api(ApiError),
-}
-
-impl<T: Storage<Session>> From<reqwest::Error> for PostError<T> {
-    fn from(e: reqwest::Error) -> Self {
-        Self::Reqwest(e)
-    }
-}
-
-impl<T: Storage<Session>> From<RefreshError<T>> for PostError<T> {
-    fn from(e: RefreshError<T>) -> Self {
-        Self::Refresh(e)
-    }
-}
-
-impl<T: Storage<Session>> From<serde_json::Error> for PostError<T> {
-    fn from(e: serde_json::Error) -> Self {
-        Self::Json(e)
-    }
-}
-
-impl<T: Storage<Session>> Client<T> {
+    ///Logs In a 
     pub async fn login(
-        service: &Url,
+        service: &reqwest::Url,
         identifier: &str,
         password: &str,
-        storage: &mut T,
-    ) -> Result<(), LoginError<T>> {
-        let mut url = service.clone();
-        url.set_path("xrpc/com.atproto.server.createSession");
-
+    ) -> Result<Client, BiskyError> {
         let response = reqwest::Client::new()
-            .post(url)
+            .post(
+                service
+                    .join("xrpc/com.atproto.server.createSession")
+                    .unwrap(),
+            )
             .header("content-type", "application/json")
             .body(
                 json!({
@@ -172,34 +94,35 @@ impl<T: Storage<Session>> Client<T> {
             .await?;
 
         if response.status() == reqwest::StatusCode::UNAUTHORIZED {
-            return Err(LoginError::BadCredentials);
+            return Err(BiskyError::BadCredentials);
         } else if response.status() == reqwest::StatusCode::BAD_REQUEST {
-            return Err(LoginError::Api(response.json::<ApiError>().await?));
+            return Err(BiskyError::ApiError(response.json::<ApiError>().await?));
         };
 
-        let body = response.json::<CreateSession>().await?.into();
+        let user_session: UserSession = response.json::<CreateUserSession>().await?.into();
 
-        if let Err(e) = storage.set(&body).await {
-            Err(LoginError::Storage(e))
-        } else {
-            Ok(())
+        // if let Err(e) = storage.set(&body).await {
+        //     Err(LoginError::Storage(e))
+        // } else {
+        //     Ok(())
+        // }
+        Ok(Client::new(service, &user_session))
+    }
+
+    pub fn new(service: &reqwest::Url, session: &UserSession) -> Self {
+        Self {
+            service: service.clone(),
+            session: session.clone(),
         }
     }
 
-    pub async fn new(service: Url, mut storage: T) -> Result<Self, T::Error> {
-        Ok(Self {
-            service,
-            session: storage.get().await?,
-            storage,
-        })
-    }
-
-    async fn xrpc_refresh_token(&mut self) -> Result<(), RefreshError<T>> {
-        let mut url = self.service.clone();
-        url.set_path("xrpc/com.atproto.server.refreshSession");
-
+    async fn xrpc_refresh_token(&mut self) -> Result<(), BiskyError> {
         let response = reqwest::Client::new()
-            .post(url)
+            .post(
+                self.service
+                    .join("xrpc/com.atproto.server.refreshSession")
+                    .unwrap(),
+            )
             .header(
                 "authorization",
                 format!("Bearer {}", self.session.jwt.refresh),
@@ -207,34 +130,33 @@ impl<T: Storage<Session>> Client<T> {
             .send()
             .await?
             .error_for_status()?
-            .json::<RefreshSession>()
+            .json::<RefreshUserSession>()
             .await?;
 
         let session = response.into();
+        self.session = session;
 
-        if let Err(e) = self.storage.set(&session).await {
-            Err(RefreshError::Storage(e))
-        } else {
-            self.session = session;
-            Ok(())
-        }
+        // if let Err(e) = self.storage.set(&session).await {
+        //     Err(RefreshError::Storage(e))
+        // } else {
+        //     self.session = session;
+        //     Ok(())
+        // }
+        Ok(())
     }
 
-    pub async fn xrpc_get<D: DeserializeOwned>(
+    pub(crate) async fn xrpc_get<D: DeserializeOwned>(
         &mut self,
         path: &str,
         query: Option<&[(&str, &str)]>,
-    ) -> Result<D, GetError<T>> {
-        let mut url = self.service.clone();
-        url.set_path(&format!("xrpc/{path}"));
-
+    ) -> Result<D, BiskyError> {
         fn make_request<T: GetService>(
             self_: &T,
-            url: Url,
+            path: &str,
             query: &Option<&[(&str, &str)]>,
         ) -> reqwest::RequestBuilder {
             let mut request = reqwest::Client::new()
-                .get(url)
+                .get(self_.get_service().join(&format!("xrpc/{path}")).unwrap())
                 .header("authorization", format!("Bearer {}", self_.access_token()));
 
             if let Some(query) = query {
@@ -244,47 +166,49 @@ impl<T: Storage<Session>> Client<T> {
             request
         }
 
-        let mut response = make_request(self, url.clone(), &query).send().await?;
+        let mut response = make_request(self, path, &query).send().await?;
 
         if response.status() == reqwest::StatusCode::BAD_REQUEST {
             let error = response.json::<ApiError>().await?;
             if error.error == "ExpiredToken" {
                 self.xrpc_refresh_token().await?;
-                response = make_request(self, url, &query).send().await?;
+                response = make_request(self, path, &query).send().await?;
             } else {
-                return Err(GetError::Api(error));
+                return Err(BiskyError::ApiError(error));
             }
         }
 
         Ok(response.error_for_status()?.json().await?)
     }
 
-    pub async fn xrpc_post<D1: Serialize, D2: DeserializeOwned>(
+    pub(crate) async fn xrpc_post<D1: Serialize, D2: DeserializeOwned>(
         &mut self,
         path: &str,
         body: &D1,
-    ) -> Result<D2, PostError<T>> {
+    ) -> Result<D2, BiskyError> {
         let body = serde_json::to_string(body)?;
-        let mut url = self.service.clone();
-        url.set_path(&format!("xrpc/{path}"));
 
-        fn make_request<T: GetService>(self_: &T, url: Url, body: &str) -> reqwest::RequestBuilder {
+        fn make_request<T: GetService>(
+            self_: &T,
+            path: &str,
+            body: &str,
+        ) -> reqwest::RequestBuilder {
             reqwest::Client::new()
-                .post(url)
+                .post(self_.get_service().join(&format!("xrpc/{path}")).unwrap())
                 .header("content-type", "application/json")
                 .header("authorization", format!("Bearer {}", self_.access_token()))
                 .body(body.to_string())
         }
 
-        let mut response = make_request(self, url.clone(), &body).send().await?;
+        let mut response = make_request(self, path, &body).send().await?;
 
         if response.status() == reqwest::StatusCode::BAD_REQUEST {
             let error = response.json::<ApiError>().await?;
             if error.error == "ExpiredToken" {
                 self.xrpc_refresh_token().await?;
-                response = make_request(self, url, &body).send().await?;
+                response = make_request(self, path, &body).send().await?;
             } else {
-                return Err(PostError::Api(error));
+                return Err(BiskyError::ApiError(error));
             }
         }
 
@@ -292,8 +216,8 @@ impl<T: Storage<Session>> Client<T> {
     }
 }
 
-pub struct RecordStream<'a, T: Storage<Session>, D: DeserializeOwned> {
-    client: &'a mut Client<T>,
+pub struct RecordStream<'a, D: DeserializeOwned> {
+    client: &'a mut Client,
     repo: &'a str,
     collection: &'a str,
     queue: VecDeque<Record<D>>,
@@ -301,19 +225,19 @@ pub struct RecordStream<'a, T: Storage<Session>, D: DeserializeOwned> {
 }
 
 #[derive(Debug)]
-pub enum StreamError<T: Storage<Session>> {
-    Get(GetError<T>),
+pub enum StreamError {
+    Bisky(BiskyError),
     NoCursor,
 }
 
-impl<T: Storage<Session>> From<GetError<T>> for StreamError<T> {
-    fn from(error: GetError<T>) -> Self {
-        Self::Get(error)
+impl From<BiskyError> for StreamError {
+    fn from(error: BiskyError) -> Self {
+        Self::Bisky(error)
     }
 }
 
-impl<'a, T: Storage<Session>, D: DeserializeOwned> RecordStream<'a, T, D> {
-    pub async fn next(&mut self) -> Result<Record<D>, StreamError<T>> {
+impl<'a, D: DeserializeOwned> RecordStream<'a, D> {
+    pub async fn next(&mut self) -> Result<Record<D>, StreamError> {
         if let Some(record) = self.queue.pop_front() {
             Ok(record)
         } else {
@@ -347,13 +271,13 @@ impl<'a, T: Storage<Session>, D: DeserializeOwned> RecordStream<'a, T, D> {
     }
 }
 
-impl<T: Storage<Session>> Client<T> {
+impl Client {
     pub async fn repo_get_record<D: DeserializeOwned>(
         &mut self,
         repo: &str,
         collection: &str,
         rkey: Option<&str>,
-    ) -> Result<Record<D>, GetError<T>> {
+    ) -> Result<Record<D>, BiskyError> {
         let mut query = vec![("repo", repo), ("collection", collection)];
 
         if let Some(rkey) = rkey {
@@ -371,7 +295,7 @@ impl<T: Storage<Session>> Client<T> {
         mut limit: usize,
         reverse: bool,
         mut cursor: Option<String>,
-    ) -> Result<(Vec<Record<D>>, Option<String>), GetError<T>> {
+    ) -> Result<(Vec<Record<D>>, Option<String>), BiskyError> {
         let reverse = reverse.to_string();
 
         let mut records = Vec::new();
@@ -412,7 +336,7 @@ impl<T: Storage<Session>> Client<T> {
         repo: &str,
         collection: &str,
         record: S,
-    ) -> Result<D, PostError<T>> {
+    ) -> Result<D, BiskyError> {
         self.xrpc_post(
             "com.atproto.repo.createRecord",
             &CreateRecord {
@@ -428,7 +352,7 @@ impl<T: Storage<Session>> Client<T> {
         &'a mut self,
         repo: &'a str,
         collection: &'a str,
-    ) -> Result<RecordStream<'a, T, D>, StreamError<T>> {
+    ) -> Result<RecordStream<'a, D>, StreamError> {
         let (_, cursor) = self
             .repo_list_records::<D>(repo, collection, 1, false, None)
             .await?;
