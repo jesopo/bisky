@@ -2,7 +2,9 @@
 use crate::errors::{BiskyError, ApiError};
 use crate::lexicon::com::atproto::repo::{CreateRecord, ListRecordsOutput, Record};
 use crate::lexicon::com::atproto::server::{CreateUserSession, RefreshUserSession};
+use crate::storage::Storage;
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
+use typed_builder::TypedBuilder;
 use std::collections::VecDeque;
 use serde_json::json;
 use std::time::Duration;
@@ -46,36 +48,55 @@ impl From<RefreshUserSession> for UserSession {
     }
 }
 
-#[derive(Debug)]
-pub struct Client {
+#[derive(Debug, TypedBuilder)]
+pub struct Client<T: Storage<UserSession>> {
+    #[builder(default=reqwest::Url::parse("https://bsky.social").unwrap())]
     service: reqwest::Url,
-    pub session: UserSession,
+    #[builder(default, setter(strip_option))]
+    storage: Option<T>,
+    #[builder(default, setter(strip_option))]
+    pub session: Option<UserSession>,
 }
 
 
 trait GetService {
     fn get_service(&self) -> &reqwest::Url;
-    fn access_token(&self) -> &str;
+    fn access_token(&self) -> Result<&str, BiskyError>;
 }
 
-impl GetService for Client {
+impl<T: Storage<UserSession>> GetService for Client<T> {
     fn get_service(&self) -> &reqwest::Url {
         &self.service
     }
 
-    fn access_token(&self) -> &str {
-        &self.session.jwt.access
+    fn access_token(&self) -> Result<&str, BiskyError> {
+        match &self.session{
+            Some(s) => Ok(&s.jwt.access),
+            None =>  Err(BiskyError::MissingSession),
+        }
     }
 }
 
-impl Client {
+impl<T: Storage<UserSession>> Client<T> {
+
+    ///Update session and put it in storage if Storage is Some
+    pub async fn update_session(&mut self, session: Option<UserSession>) -> Result<(), BiskyError>{
+        self.session=session;
+
+        // Store updated session if storage is provided
+        if let Some(storage) = &mut self.storage{
+            storage.set(self.session.as_ref()).await.map_err(|e| BiskyError::StorageError(e.to_string()))?;
+        }
+        Ok(())
+    }
 
     ///Logs In a 
     pub async fn login(
+        &mut self,
         service: &reqwest::Url,
         identifier: &str,
         password: &str,
-    ) -> Result<Client, BiskyError> {
+    ) -> Result<(), BiskyError> {
         let response = reqwest::Client::new()
             .post(
                 service
@@ -101,22 +122,15 @@ impl Client {
 
         let user_session: UserSession = response.json::<CreateUserSession>().await?.into();
 
-        // if let Err(e) = storage.set(&body).await {
-        //     Err(LoginError::Storage(e))
-        // } else {
-        //     Ok(())
-        // }
-        Ok(Client::new(service, &user_session))
-    }
+        self.update_session(Some(user_session)).await?;
+        Ok(())
 
-    pub fn new(service: &reqwest::Url, session: &UserSession) -> Self {
-        Self {
-            service: service.clone(),
-            session: session.clone(),
-        }
     }
 
     async fn xrpc_refresh_token(&mut self) -> Result<(), BiskyError> {
+        let Some(session) = &self.session else{
+            return Err(BiskyError::MissingSession);
+        };
         let response = reqwest::Client::new()
             .post(
                 self.service
@@ -125,7 +139,7 @@ impl Client {
             )
             .header(
                 "authorization",
-                format!("Bearer {}", self.session.jwt.refresh),
+                format!("Bearer {}", session.jwt.refresh),
             )
             .send()
             .await?
@@ -134,7 +148,7 @@ impl Client {
             .await?;
 
         let session = response.into();
-        self.session = session;
+        self.update_session(Some(session)).await?;
 
         // if let Err(e) = self.storage.set(&session).await {
         //     Err(RefreshError::Storage(e))
@@ -154,25 +168,25 @@ impl Client {
             self_: &T,
             path: &str,
             query: &Option<&[(&str, &str)]>,
-        ) -> reqwest::RequestBuilder {
+        ) -> Result<reqwest::RequestBuilder, BiskyError> {
             let mut request = reqwest::Client::new()
                 .get(self_.get_service().join(&format!("xrpc/{path}")).unwrap())
-                .header("authorization", format!("Bearer {}", self_.access_token()));
+                .header("authorization", format!("Bearer {}", self_.access_token()?));
 
             if let Some(query) = query {
                 request = request.query(query);
             }
 
-            request
+            Ok(request)
         }
 
-        let mut response = make_request(self, path, &query).send().await?;
+        let mut response = make_request(self, path, &query)?.send().await?;
 
         if response.status() == reqwest::StatusCode::BAD_REQUEST {
             let error = response.json::<ApiError>().await?;
             if error.error == "ExpiredToken" {
                 self.xrpc_refresh_token().await?;
-                response = make_request(self, path, &query).send().await?;
+                response = make_request(self, path, &query)?.send().await?;
             } else {
                 return Err(BiskyError::ApiError(error));
             }
@@ -192,21 +206,21 @@ impl Client {
             self_: &T,
             path: &str,
             body: &str,
-        ) -> reqwest::RequestBuilder {
-            reqwest::Client::new()
+        ) -> Result<reqwest::RequestBuilder, BiskyError> {
+            Ok(reqwest::Client::new()
                 .post(self_.get_service().join(&format!("xrpc/{path}")).unwrap())
                 .header("content-type", "application/json")
-                .header("authorization", format!("Bearer {}", self_.access_token()))
-                .body(body.to_string())
+                .header("authorization", format!("Bearer {}", self_.access_token()?))
+                .body(body.to_string()))
         }
 
-        let mut response = make_request(self, path, &body).send().await?;
+        let mut response = make_request(self, path, &body)?.send().await?;
 
         if response.status() == reqwest::StatusCode::BAD_REQUEST {
             let error = response.json::<ApiError>().await?;
             if error.error == "ExpiredToken" {
                 self.xrpc_refresh_token().await?;
-                response = make_request(self, path, &body).send().await?;
+                response = make_request(self, path, &body)?.send().await?;
             } else {
                 return Err(BiskyError::ApiError(error));
             }
@@ -216,8 +230,8 @@ impl Client {
     }
 }
 
-pub struct RecordStream<'a, D: DeserializeOwned> {
-    client: &'a mut Client,
+pub struct RecordStream<'a, T: Storage<UserSession>, D: DeserializeOwned> {
+    client: &'a mut Client<T>,
     repo: &'a str,
     collection: &'a str,
     queue: VecDeque<Record<D>>,
@@ -236,7 +250,7 @@ impl From<BiskyError> for StreamError {
     }
 }
 
-impl<'a, D: DeserializeOwned> RecordStream<'a, D> {
+impl<'a, T: Storage<UserSession>, D: DeserializeOwned> RecordStream<'a, T, D> {
     pub async fn next(&mut self) -> Result<Record<D>, StreamError> {
         if let Some(record) = self.queue.pop_front() {
             Ok(record)
@@ -271,7 +285,7 @@ impl<'a, D: DeserializeOwned> RecordStream<'a, D> {
     }
 }
 
-impl Client {
+impl<T: Storage<UserSession>> Client<T> {
     pub async fn repo_get_record<D: DeserializeOwned>(
         &mut self,
         repo: &str,
@@ -352,7 +366,7 @@ impl Client {
         &'a mut self,
         repo: &'a str,
         collection: &'a str,
-    ) -> Result<RecordStream<'a, D>, StreamError> {
+    ) -> Result<RecordStream<'a, T, D>, StreamError> {
         let (_, cursor) = self
             .repo_list_records::<D>(repo, collection, 1, false, None)
             .await?;

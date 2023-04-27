@@ -3,25 +3,53 @@ use crate::lexicon::app::bsky::actor::ProfileViewDetailed;
 use crate::lexicon::app::bsky::feed::Post;
 use crate::lexicon::com::atproto::repo::{Record};
 use crate::errors::BiskyError;
+use crate::storage::Storage;
+use crate::atproto::UserSession;
 
 #[derive(Debug)]
-pub struct Bluesky {
-    client: Client,
+pub struct Bluesky<T: Storage<UserSession>> {
+    client: Client<T>,
+}
+
+impl<T: Storage<UserSession>> Bluesky<T> {
+    pub fn new(client: Client<T>) -> Self {
+        Self { client }
+    }
+
+    pub fn user(&mut self, username: String) -> Result<BlueskyUser<T>, BiskyError> {
+        let Some(_session) = &self.client.session else{
+            return Err(BiskyError::MissingSession);
+        };
+        Ok(BlueskyUser {
+            client: &mut self.client,
+            username,
+        })
+    }
+
+    pub fn me(&mut self) -> Result<BlueskyMe<T>, BiskyError> {
+        let Some(session) = &self.client.session else{
+            return Err(BiskyError::MissingSession);
+        };
+        Ok(BlueskyMe {
+            username: session.did.to_string(),
+            client: &mut self.client,
+        })
+    }
 }
 
 #[derive(Debug)]
-pub struct BlueskyMe<'a> {
-    client: &'a mut Client,
+pub struct BlueskyMe<'a, T: Storage<UserSession>> {
+    client: &'a mut Client<T>,
     username: String,
 }
 
 #[derive(Debug)]
-pub struct BlueskyUser<'a> {
-    client: &'a mut Client,
+pub struct BlueskyUser<'a, T: Storage<UserSession>> {
+    client: &'a mut Client<T>,
     username: String,
 }
 
-impl BlueskyUser<'_> {
+impl<T: Storage<UserSession>> BlueskyUser<'_, T> {
     pub async fn get_profile(&mut self) -> Result<ProfileViewDetailed, BiskyError> {
         self.client
             .xrpc_get(
@@ -44,29 +72,9 @@ impl BlueskyUser<'_> {
             .map(|l| l.0)
     }
 
-    pub async fn stream_posts<'a>(&'a mut self) -> Result<RecordStream<'a, Post>, StreamError> {
+    pub async fn stream_posts(&mut self) -> Result<RecordStream<T,Post>, StreamError> {
         self.client
             .repo_stream_records(&self.username, "app.bsky.feed.post")
             .await
-    }
-}
-
-impl Bluesky {
-    pub fn new(client: Client) -> Self {
-        Self { client }
-    }
-
-    pub fn user(&mut self, username: String) -> BlueskyUser {
-        BlueskyUser {
-            client: &mut self.client,
-            username,
-        }
-    }
-
-    pub fn me(&mut self) -> BlueskyMe {
-        BlueskyMe {
-            username: self.client.session.did.to_string(),
-            client: &mut self.client,
-        }
     }
 }
