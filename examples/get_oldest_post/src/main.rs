@@ -3,6 +3,7 @@ use bisky::{bluesky::Bluesky, storage::{File, Storage}};
 use clap::Parser;
 use std::path::PathBuf;
 use url::Url;
+use std::sync::Arc;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -28,7 +29,7 @@ struct Arguments {
 async fn main() {
     let args = Arguments::parse();
 
-    let storage = File::<UserSession>::new(args.storage);
+    let storage = Arc::new(File::<UserSession>::new(args.storage));
     
     // Create Client from Storage if tokens are not found.
     // TODO: Check if tokens are expired 

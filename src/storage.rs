@@ -5,13 +5,16 @@ use serde::Serialize;
 use std::marker::PhantomData;
 use std::marker::Sync;
 use std::path::PathBuf;
+use crate::atproto::Storable;
+use crate::atproto::UserSession;
+use crate::errors::BiskyError;
 
 #[async_trait::async_trait]
 pub trait Storage<T: DeserializeOwned + Serialize + Sync> {
     type Error: std::fmt::Debug + std::error::Error;
 
-    async fn set(&mut self, data: Option<&T>) -> Result<(), Self::Error>;
-    async fn get(&mut self) -> Result<T, Self::Error>;
+    async fn set(&self, data: Option<&T>) -> Result<(), Self::Error>;
+    async fn get(&self) -> Result<T, Self::Error>;
 }
 
 #[derive(Debug, Clone)]
@@ -39,14 +42,16 @@ pub enum FileError {
 
 #[async_trait::async_trait]
 impl<'a, T: DeserializeOwned + Serialize + Sync> Storage<T> for File<'a, T> {
-    type Error = FileError;
+    type Error = BiskyError;
 
-    async fn set(&mut self, data: Option<&T>) -> Result<(), Self::Error> {
+    async fn set(&self, data: Option<&T>) -> Result<(), Self::Error> {
         tokio::fs::write(&self.path, serde_json::to_string(&data)?).await?;
         Ok(())
     }
 
-    async fn get(&mut self) -> Result<T, Self::Error> {
+    async fn get(&self) -> Result<T, Self::Error> {
         Ok(serde_json::from_slice(&tokio::fs::read(&self.path).await?)?)
     }
 }
+
+impl<'a> Storable for File<'a, UserSession>{}

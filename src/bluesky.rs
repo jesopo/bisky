@@ -7,16 +7,16 @@ use crate::storage::Storage;
 use crate::atproto::UserSession;
 
 #[derive(Debug)]
-pub struct Bluesky<T: Storage<UserSession>> {
-    client: Client<T>,
+pub struct Bluesky {
+    client: Client,
 }
 
-impl<T: Storage<UserSession>> Bluesky<T> {
-    pub fn new(client: Client<T>) -> Self {
+impl Bluesky {
+    pub fn new(client: Client) -> Self {
         Self { client }
     }
 
-    pub fn user(&mut self, username: String) -> Result<BlueskyUser<T>, BiskyError> {
+    pub fn user(&mut self, username: String) -> Result<BlueskyUser, BiskyError> {
         let Some(_session) = &self.client.session else{
             return Err(BiskyError::MissingSession);
         };
@@ -26,7 +26,7 @@ impl<T: Storage<UserSession>> Bluesky<T> {
         })
     }
 
-    pub fn me(&mut self) -> Result<BlueskyMe<T>, BiskyError> {
+    pub fn me(&mut self) -> Result<BlueskyMe, BiskyError> {
         let Some(session) = &self.client.session else{
             return Err(BiskyError::MissingSession);
         };
@@ -38,18 +38,18 @@ impl<T: Storage<UserSession>> Bluesky<T> {
 }
 
 #[derive(Debug)]
-pub struct BlueskyMe<'a, T: Storage<UserSession>> {
-    client: &'a mut Client<T>,
+pub struct BlueskyMe<'a> {
+    client: &'a mut Client,
     username: String,
 }
 
 #[derive(Debug)]
-pub struct BlueskyUser<'a, T: Storage<UserSession>> {
-    client: &'a mut Client<T>,
+pub struct BlueskyUser<'a> {
+    client: &'a mut Client,
     username: String,
 }
 
-impl<T: Storage<UserSession>> BlueskyUser<'_, T> {
+impl BlueskyUser<'_> {
     pub async fn get_profile(&mut self) -> Result<ProfileViewDetailed, BiskyError> {
         self.client
             .xrpc_get(
@@ -72,7 +72,7 @@ impl<T: Storage<UserSession>> BlueskyUser<'_, T> {
             .map(|l| l.0)
     }
 
-    pub async fn stream_posts(&mut self) -> Result<RecordStream<T,Post>, StreamError> {
+    pub async fn stream_posts(&mut self) -> Result<RecordStream<Post>, StreamError> {
         self.client
             .repo_stream_records(&self.username, "app.bsky.feed.post")
             .await

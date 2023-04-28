@@ -6,6 +6,7 @@ use crate::storage::Storage;
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use derive_builder::Builder;
 use std::collections::VecDeque;
+use std::sync::Arc;
 use serde_json::json;
 use std::time::Duration;
 
@@ -47,28 +48,29 @@ impl From<RefreshUserSession> for UserSession {
         }
     }
 }
+pub trait Storable: Storage<UserSession, Error=BiskyError> + std::fmt::Debug {}
 
 #[derive(Debug, Clone, Builder)]
-pub struct Client<T: Storage<UserSession>> {
+pub struct Client {
     #[builder(default=r#"reqwest::Url::parse("https://bsky.social").unwrap()"#)]
     service: reqwest::Url,
     #[builder(default, setter(strip_option))]
-    storage: Option<T>,
+    storage: Option<Arc<dyn Storable + Send + Sync>>,
     #[builder(default, setter(custom))]
     pub session: Option<UserSession>,
 }
 
-impl <T: Storage<UserSession> >ClientBuilder<T>{
+impl ClientBuilder{
     pub fn session(&mut self, session: Option<UserSession>) -> &mut Self{
         self.session = Some(session);
         self
     }
-    pub async fn session_from_storage(&mut self, mut storage: T) -> &mut Self{
-        let session = storage.get().await.ok();
-        self.session = Some(session);
-        self.storage = Some(Some(storage));
-        self
-    }
+    // pub async fn session_from_storage(&mut self, mut storage: T) -> &mut Self{
+    //     let session = storage.get().await.ok();
+    //     self.session = Some(session);
+    //     self.storage = Some(Some(storage));
+    //     self
+    // }
 }
 
 
@@ -77,7 +79,7 @@ trait GetService {
     fn access_token(&self) -> Result<&str, BiskyError>;
 }
 
-impl<T: Storage<UserSession>> GetService for Client<T> {
+impl GetService for Client {
     fn get_service(&self) -> &reqwest::Url {
         &self.service
     }
@@ -90,7 +92,7 @@ impl<T: Storage<UserSession>> GetService for Client<T> {
     }
 }
 
-impl<T: Storage<UserSession>> Client<T> {
+impl Client {
 
     ///Update session and put it in storage if Storage is Some
     pub async fn update_session(&mut self, session: Option<UserSession>) -> Result<(), BiskyError>{
@@ -247,8 +249,8 @@ impl<T: Storage<UserSession>> Client<T> {
     }
 }
 
-pub struct RecordStream<'a, T: Storage<UserSession>, D: DeserializeOwned> {
-    client: &'a mut Client<T>,
+pub struct RecordStream<'a, D: DeserializeOwned> {
+    client: &'a mut Client,
     repo: &'a str,
     collection: &'a str,
     queue: VecDeque<Record<D>>,
@@ -267,7 +269,7 @@ impl From<BiskyError> for StreamError {
     }
 }
 
-impl<'a, T: Storage<UserSession>, D: DeserializeOwned> RecordStream<'a, T, D> {
+impl<'a, D: DeserializeOwned> RecordStream<'a, D> {
     pub async fn next(&mut self) -> Result<Record<D>, StreamError> {
         if let Some(record) = self.queue.pop_front() {
             Ok(record)
@@ -302,7 +304,7 @@ impl<'a, T: Storage<UserSession>, D: DeserializeOwned> RecordStream<'a, T, D> {
     }
 }
 
-impl<T: Storage<UserSession>> Client<T> {
+impl Client {
     pub async fn repo_get_record<D: DeserializeOwned>(
         &mut self,
         repo: &str,
@@ -383,7 +385,7 @@ impl<T: Storage<UserSession>> Client<T> {
         &'a mut self,
         repo: &'a str,
         collection: &'a str,
-    ) -> Result<RecordStream<'a, T, D>, StreamError> {
+    ) -> Result<RecordStream<'a, D>, StreamError> {
         let (_, cursor) = self
             .repo_list_records::<D>(repo, collection, 1, false, None)
             .await?;
