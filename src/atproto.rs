@@ -55,7 +55,7 @@ pub struct Client {
     #[builder(default=r#"reqwest::Url::parse("https://bsky.social").unwrap()"#)]
     service: reqwest::Url,
     #[builder(default, setter(strip_option))]
-    storage: Option<Arc<dyn Storable + Send + Sync>>,
+    storage: Option<Arc<dyn Storable>>,
     #[builder(default, setter(custom))]
     pub session: Option<UserSession>,
 }
@@ -65,12 +65,12 @@ impl ClientBuilder{
         self.session = Some(session);
         self
     }
-    // pub async fn session_from_storage(&mut self, mut storage: T) -> &mut Self{
-    //     let session = storage.get().await.ok();
-    //     self.session = Some(session);
-    //     self.storage = Some(Some(storage));
-    //     self
-    // }
+    pub async fn session_from_storage<T: Storable + 'static>(&mut self, storage: T) -> &mut Self{
+        let session = storage.get().await.ok();
+        self.session = Some(session);
+        self.storage = Some(Some(Arc::new(storage)));
+        self
+    }
 }
 
 
