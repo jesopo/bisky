@@ -5,7 +5,7 @@ use serde::Serialize;
 use std::marker::PhantomData;
 use std::marker::Sync;
 use std::path::PathBuf;
-use crate::atproto::Storable;
+use crate::atproto::StorableSession;
 use crate::atproto::UserSession;
 use crate::errors::BiskyError;
 
@@ -54,4 +54,4 @@ impl<'a, T: DeserializeOwned + Serialize + Sync> Storage<T> for File<'a, T> {
     }
 }
 
-impl<'a> Storable for File<'a, UserSession>{}
+impl<'a> StorableSession for File<'a, UserSession>{}

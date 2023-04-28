@@ -6,7 +6,6 @@ use crate::errors::BiskyError;
 use crate::storage::Storage;
 use crate::atproto::UserSession;
 
-#[derive(Debug)]
 pub struct Bluesky {
     client: Client,
 }
@@ -37,13 +36,11 @@ impl Bluesky {
     }
 }
 
-#[derive(Debug)]
 pub struct BlueskyMe<'a> {
     client: &'a mut Client,
     username: String,
 }
 
-#[derive(Debug)]
 pub struct BlueskyUser<'a> {
     client: &'a mut Client,
     username: String,

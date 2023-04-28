@@ -48,14 +48,14 @@ impl From<RefreshUserSession> for UserSession {
         }
     }
 }
-pub trait Storable: Storage<UserSession, Error=BiskyError> + std::fmt::Debug {}
+pub trait StorableSession: Storage<UserSession, Error=BiskyError> {}
 
-#[derive(Debug, Clone, Builder)]
+#[derive(Clone, Builder)]
 pub struct Client {
     #[builder(default=r#"reqwest::Url::parse("https://bsky.social").unwrap()"#)]
     service: reqwest::Url,
     #[builder(default, setter(strip_option))]
-    storage: Option<Arc<dyn Storable>>,
+    storage: Option<Arc<dyn StorableSession>>,
     #[builder(default, setter(custom))]
     pub session: Option<UserSession>,
 }
@@ -65,7 +65,7 @@ impl ClientBuilder{
         self.session = Some(session);
         self
     }
-    pub async fn session_from_storage<T: Storable + 'static>(&mut self, storage: T) -> &mut Self{
+    pub async fn session_from_storage<T: StorableSession + 'static>(&mut self, storage: T) -> &mut Self{
         let session = storage.get().await.ok();
         self.session = Some(session);
         self.storage = Some(Some(Arc::new(storage)));
