@@ -4,18 +4,18 @@ use crate::lexicon::com::atproto::repo::{CreateRecord, ListRecordsOutput, Record
 use crate::lexicon::com::atproto::server::{CreateUserSession, RefreshUserSession};
 use crate::storage::Storage;
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
-use typed_builder::TypedBuilder;
+use derive_builder::Builder;
 use std::collections::VecDeque;
 use serde_json::json;
 use std::time::Duration;
 
-#[derive(Debug, Deserialize, Clone, Serialize)]
+#[derive(Debug, Default, Deserialize, Clone, Serialize)]
 pub struct Jwt {
     access: String,
     refresh: String,
 }
 
-#[derive(Debug, Deserialize, Clone, Serialize)]
+#[derive(Debug, Default, Deserialize, Clone, Serialize)]
 pub struct UserSession {
     pub did: String,
     pub handle: String,
@@ -48,14 +48,27 @@ impl From<RefreshUserSession> for UserSession {
     }
 }
 
-#[derive(Debug, TypedBuilder)]
+#[derive(Debug, Clone, Builder)]
 pub struct Client<T: Storage<UserSession>> {
-    #[builder(default=reqwest::Url::parse("https://bsky.social").unwrap())]
+    #[builder(default=r#"reqwest::Url::parse("https://bsky.social").unwrap()"#)]
     service: reqwest::Url,
     #[builder(default, setter(strip_option))]
     storage: Option<T>,
-    #[builder(default, setter(strip_option))]
+    #[builder(default, setter(custom))]
     pub session: Option<UserSession>,
+}
+
+impl <T: Storage<UserSession> >ClientBuilder<T>{
+    pub fn session(&mut self, session: Option<UserSession>) -> &mut Self{
+        self.session = Some(session);
+        self
+    }
+    pub async fn session_from_storage(&mut self, mut storage: T) -> &mut Self{
+        let session = storage.get().await.ok();
+        self.session = Some(session);
+        self.storage = Some(Some(storage));
+        self
+    }
 }
 
 
@@ -90,7 +103,11 @@ impl<T: Storage<UserSession>> Client<T> {
         Ok(())
     }
 
-    ///Logs In a 
+    /// Create a 
+    pub async fn from_storage(){
+
+    }
+
     pub async fn login(
         &mut self,
         service: &reqwest::Url,

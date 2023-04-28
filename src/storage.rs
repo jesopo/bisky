@@ -11,10 +11,10 @@ pub trait Storage<T: DeserializeOwned + Serialize + Sync> {
     type Error: std::fmt::Debug + std::error::Error;
 
     async fn set(&mut self, data: Option<&T>) -> Result<(), Self::Error>;
-    async fn get(&mut self) -> Result<Option<T>, Self::Error>;
+    async fn get(&mut self) -> Result<T, Self::Error>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct File<'a, T> {
     path: PathBuf,
     phantom: PhantomData<&'a T>,
@@ -46,7 +46,7 @@ impl<'a, T: DeserializeOwned + Serialize + Sync> Storage<T> for File<'a, T> {
         Ok(())
     }
 
-    async fn get(&mut self) -> Result<Option<T>, Self::Error> {
+    async fn get(&mut self) -> Result<T, Self::Error> {
         Ok(serde_json::from_slice(&tokio::fs::read(&self.path).await?)?)
     }
 }

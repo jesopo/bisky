@@ -1,4 +1,4 @@
-use bisky::atproto::{Client, UserSession};
+use bisky::atproto::{Client, ClientBuilder, UserSession};
 use bisky::{bluesky::Bluesky, storage::{File, Storage}};
 use clap::Parser;
 use std::path::PathBuf;
@@ -32,12 +32,12 @@ async fn main() {
     
     // Create Client from Storage if tokens are not found.
     // TODO: Check if tokens are expired 
-    // if storage.get().await.is_err() {
-        let mut client = Client::builder().storage(storage).build();
+        // let mut client = ClientBuilder::default().session_from_storage(None, storage).await.build().unwrap();
+        let mut client= ClientBuilder::default().session(None).storage(storage).build().unwrap();
+
         client.login(&args.service, &args.username, &args.password)
         .await
         .unwrap();
-    // }
 
     let mut bsky = Bluesky::new(client);
     println!("Client\n{:#?}", bsky);
