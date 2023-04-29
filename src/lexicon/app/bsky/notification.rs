@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-
+use super::graph::Follow;
+use super::feed::{Like, Post, Repost};
 use super::actor::ProfileView;
 
 #[derive(Debug, Deserialize)]
@@ -18,8 +19,6 @@ pub struct Notification<T> {
     pub labels: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
 pub enum Subject{
     PostSubject,
     String,
@@ -38,12 +37,16 @@ pub struct ActorSubject(String);
 
 
 #[derive(Debug, Deserialize)]
-pub struct NotificationRecord{
-    #[serde(rename(deserialize = "$type"))]
-    pub record_type: String,
-    pub subject: Subject,
-    #[serde(rename(deserialize = "createdAt"))]
-    pub created_at: DateTime<Utc>,
+#[serde(tag = "$type")]
+pub enum NotificationRecord{
+    #[serde(rename(deserialize = "app.bsky.feed.like"))]
+    Like(Like),
+    #[serde(rename(deserialize = "app.bsky.feed.post"))]
+    Post(Post),
+    #[serde(rename(deserialize = "app.bsky.feed.repost"))]
+    Repost(Repost),
+    #[serde(rename(deserialize = "app.bsky.graph.follow"))]
+    Follow(Follow)
 }
 
 #[derive(Debug, Deserialize)]

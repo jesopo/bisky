@@ -4,6 +4,7 @@ use clap::Parser;
 use std::path::PathBuf;
 use url::Url;
 use std::sync::Arc;
+use bisky::lexicon::app::bsky::notification::{Notification, NotificationRecord};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -20,9 +21,6 @@ struct Arguments {
     /// Password to log in with
     #[clap(index = 4)]
     password: String,
-    /// Username to get notifications for
-    #[clap(index = 5)]
-    query: String,
 }
 
 #[tokio::main]
@@ -41,7 +39,9 @@ async fn main() {
         .unwrap();
 
     let mut bsky = Bluesky::new(client);
-    let mut user = bsky.user(args.username).unwrap();
-    let notifications = user.list_notifications().await.unwrap();
-    println!("Notifications\n{:#?}", notifications);
+    let mut me = bsky.me().unwrap();
+    let notifications = me.list_notifications(30).await.unwrap();
+    // println!("Notifications\n{:#?}", notifications);
+    println!("Notifications\n{:#?}", notifications.into_iter().filter(|n| n.reason == "follow").collect::<Vec<Notification<NotificationRecord>>>());
+    me.update_seen().await.unwrap();
 }

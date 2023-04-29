@@ -2,9 +2,9 @@ use crate::atproto::{Client, RecordStream, StreamError};
 use crate::lexicon::app::bsky::actor::ProfileViewDetailed;
 use crate::lexicon::app::bsky::feed::Post;
 use crate::lexicon::app::bsky::notification::{Notification, NotificationRecord};
-use crate::lexicon::com::atproto::repo::Record;
+use crate::lexicon::com::atproto::repo::{Record, CreateRecordOutput, BlobOutput};
 use crate::errors::BiskyError;
-
+use chrono::Utc;
 pub struct Bluesky {
     client: Client,
 }
@@ -40,6 +40,35 @@ pub struct BlueskyMe<'a> {
     username: String,
 }
 
+impl<'a> BlueskyMe<'a> {
+    /// Post a new Post to your skyline
+    pub async fn post(&mut self, post: Post) -> Result<CreateRecordOutput, BiskyError> {
+        self.client
+            .repo_create_record(&self.username, "app.bsky.feed.post", &post)
+            .await
+    }
+    /// Get the notifications for the user
+    ///app.bsky.notification.listNotifications#
+    pub async fn list_notifications(&mut self, limit: usize) -> Result<Vec<Notification<NotificationRecord>>, BiskyError>{
+        self.client
+            .bsky_list_notifications(limit, None, None)
+            .await
+            .map(|l| l.0)
+    }
+    /// Tell Bsky when the notifications were seen, marking them as old
+    pub async fn update_seen(&mut self) -> Result<(), BiskyError>{
+        self.client
+            .bsky_update_seen(Utc::now())
+            .await
+    }
+
+    /// Upload a Blob(Image) for use in a Bsky Post later
+    pub async fn upload_blob(&mut self, blob: &[u8], mime_type: &str) -> Result<BlobOutput, BiskyError>{
+        self.client
+            .repo_upload_blob(blob, mime_type)
+            .await
+    }
+}
 pub struct BlueskyUser<'a> {
     client: &'a mut Client,
     username: String,
@@ -73,15 +102,4 @@ impl BlueskyUser<'_> {
             .repo_stream_records(&self.username, "app.bsky.feed.post")
             .await
     }
-    /// Get the notifications for the user
-    ///app.bsky.notification.listNotifications#
-    pub async fn list_notifications(&mut self) -> Result<Vec<Notification<NotificationRecord>>, BiskyError>{
-        self.client
-            .bsky_list_notifications(usize::MAX, None, None)
-            .await
-            .map(|l| l.0)
-    }
-    // pub async fn update_seen(&mut self){
-
-    //}
 }

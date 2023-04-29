@@ -6,6 +6,8 @@ use serde::Deserialize;
 pub enum BiskyError{
     #[error("Bad Credentials!")]
     BadCredentials,
+    #[error("Unexpected Response: {0}")]
+    UnexpectedResponse(String),
     #[error("No Session Found! Did you forget to login?")]
     MissingSession,
     #[error(transparent)]

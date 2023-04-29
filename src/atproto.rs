@@ -1,9 +1,11 @@
 
 use crate::errors::{BiskyError, ApiError};
-use crate::lexicon::app::bsky::notification::{Notification, ListNotificationsOutput};
-use crate::lexicon::com::atproto::repo::{CreateRecord, ListRecordsOutput, Record};
+use crate::lexicon::app::bsky::notification::{Notification, ListNotificationsOutput, UpdateSeen};
+use crate::lexicon::com::atproto::repo::{CreateRecord, ListRecordsOutput, Record, CreateUploadBlob};
 use crate::lexicon::com::atproto::server::{CreateUserSession, RefreshUserSession};
 use crate::storage::Storage;
+use chrono::{DateTime, Utc};
+use reqwest::header::HeaderValue;
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use derive_builder::Builder;
 use std::collections::VecDeque;
@@ -207,12 +209,12 @@ impl Client {
             }
         }
 
-        let text = response.error_for_status()?.text().await?;
-        println!("Text\n\n{:#?}\n\n", text);
-        let json = serde_json::from_str(&text)?;
+        // let text: String = response.error_for_status()?.text().await?;
+        // println!("Text\n\n{:#?}\n\n", text);
+        // let json = serde_json::from_str(&text)?;
 
-        // let json = response.error_for_status()?.json().await?;
-        println!("Response\n\n{:#?}\n\n", json);
+        let json = response.error_for_status()?.json().await?;
+        // println!("Response\n\n{:#?}\n\n", json);
         Ok(json)
     }
 
@@ -221,6 +223,88 @@ impl Client {
         path: &str,
         body: &D1,
     ) -> Result<D2, BiskyError> {
+        let body = serde_json::to_string(body)?;
+
+        fn make_request<T: GetService>(
+            self_: &T,
+            path: &str,
+            body: &str,
+        ) -> Result<reqwest::RequestBuilder, BiskyError> {
+
+            println!("BODY: {:#?}", body);            
+
+            let req = reqwest::Client::new()
+            .post(self_.get_service().join(&format!("xrpc/{path}")).unwrap())
+            .header("content-type", "application/json")
+            .header("authorization", format!("Bearer {}", self_.access_token()?))
+            .body(body.to_string());
+
+            println!("REQ: {:#?}", req);
+            Ok(req)
+        }
+
+        let mut response = make_request(self, path, &body)?.send().await?;
+
+        if response.status() == reqwest::StatusCode::BAD_REQUEST {
+            let error = response.json::<ApiError>().await?;
+            if error.error == "ExpiredToken" {
+                self.xrpc_refresh_token().await?;
+                response = make_request(self, path, &body)?.send().await?;
+            } else {
+                return Err(BiskyError::ApiError(error));
+            }
+        }
+         let text: String = response.error_for_status()?.text().await?;
+        println!("Text\n\n{:#?}\n\n", text);
+        let json = serde_json::from_str(&text)?;
+        // let json = response.error_for_status()?.json::<D2>().await?;
+
+        Ok(json)
+    }
+
+    pub(crate) async fn xrpc_post_binary<D2: DeserializeOwned>(
+        &mut self,
+        path: &str,
+        body: &[u8],
+        mime_type: &str,
+    ) -> Result<D2, BiskyError> {
+
+        fn make_request<T: GetService>(
+            self_: &T,
+            path: &str,
+            body: &[u8],
+            mime_type: &str,
+        ) -> Result<reqwest::RequestBuilder, BiskyError> {     
+            Ok(reqwest::Client::new()
+                .post(self_.get_service().join(&format!("xrpc/{path}")).unwrap())
+                .header("content-type", mime_type)
+                .header("authorization", format!("Bearer {}", self_.access_token()?))
+                .body(body.to_vec()))
+        }
+
+        let mut response = make_request(self, path, body, mime_type)?.send().await?;
+
+        if response.status() == reqwest::StatusCode::BAD_REQUEST {
+            let error = response.json::<ApiError>().await?;
+            if error.error == "ExpiredToken" {
+                self.xrpc_refresh_token().await?;
+                response = make_request(self, path, body, mime_type)?.send().await?;
+            } else {
+                return Err(BiskyError::ApiError(error));
+            }
+        }
+         let text: String = response.error_for_status()?.text().await?;
+        println!("Text\n\n{:#?}\n\n", text);
+        let json = serde_json::from_str(&text)?;
+        // let json = response.error_for_status()?.json::<D2>().await?;
+
+        Ok(json)
+    }
+    pub(crate) async fn xrpc_post_no_response<D1: Serialize>(
+        &mut self,
+        path: &str,
+        body: &D1,
+    ) -> Result<(), BiskyError> {
         let body = serde_json::to_string(body)?;
 
         fn make_request<T: GetService>(
@@ -246,8 +330,11 @@ impl Client {
                 return Err(BiskyError::ApiError(error));
             }
         }
-
-        Ok(response.error_for_status()?.json::<D2>().await?)
+         let text: String = response.error_for_status()?.text().await?;
+         match text.is_empty(){
+            true => Ok(()),
+            false => Err(BiskyError::UnexpectedResponse(text))
+         }
     }
 }
 
@@ -383,6 +470,19 @@ impl Client {
         .await
     }
 
+    pub async fn repo_upload_blob<D: DeserializeOwned>(
+        &mut self,
+        blob: &[u8],
+        mime_type: &str,
+    ) -> Result<D, BiskyError> {
+        self.xrpc_post_binary(
+            "com.atproto.repo.uploadBlob",
+            blob,
+            mime_type
+        )
+        .await
+    }
+
     pub async fn repo_stream_records<'a, D: DeserializeOwned + std::fmt::Debug>(
         &'a mut self,
         repo: &'a str,
@@ -444,5 +544,19 @@ impl Client {
         }
 
         Ok((notifications, response_cursor))
+    }
+
+    pub async fn bsky_update_seen(
+        &mut self,
+        seen_at: DateTime<Utc>,
+    ) -> Result<(), BiskyError> {
+        self.xrpc_post_no_response(
+            "app.bsky.notification.updateSeen",
+            &UpdateSeen {
+               seen_at
+            },
+        )
+        .await
+
     }
 }
