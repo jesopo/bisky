@@ -26,7 +26,7 @@ pub struct Post {
     #[serde(rename(deserialize = "createdAt", serialize = "createdAt"))]
     pub created_at: DateTime<Utc>,
     #[serde(rename(deserialize = "$type", serialize = "$type"))]
-    pub rust_type: String,
+    pub rust_type: Option<String>,
     pub text: String,
     pub embed: Option<ImagesEmbed>,
 }

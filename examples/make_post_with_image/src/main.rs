@@ -52,7 +52,7 @@ async fn main() {
             .me()
             .unwrap()
             .post(Post {
-                rust_type: "app.bsky.feed.post".to_string(),
+                rust_type: Some("app.bsky.feed.post".to_string()),
                 text: args.post_text,
                 created_at: chrono::Utc::now(),
                 embed: Some(images_embed),
