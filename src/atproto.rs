@@ -1,5 +1,6 @@
 
 use crate::errors::{BiskyError, ApiError};
+use crate::lexicon::app::bsky::notification::{Notification, ListNotificationsOutput};
 use crate::lexicon::com::atproto::repo::{CreateRecord, ListRecordsOutput, Record};
 use crate::lexicon::com::atproto::server::{CreateUserSession, RefreshUserSession};
 use crate::storage::Storage;
@@ -105,11 +106,6 @@ impl Client {
         Ok(())
     }
 
-    /// Create a 
-    pub async fn from_storage(){
-
-    }
-
     pub async fn login(
         &mut self,
         service: &reqwest::Url,
@@ -178,7 +174,7 @@ impl Client {
         Ok(())
     }
 
-    pub(crate) async fn xrpc_get<D: DeserializeOwned>(
+    pub(crate) async fn xrpc_get<D: DeserializeOwned + std::fmt::Debug>(
         &mut self,
         path: &str,
         query: Option<&[(&str, &str)]>,
@@ -211,7 +207,13 @@ impl Client {
             }
         }
 
-        Ok(response.error_for_status()?.json().await?)
+        let text = response.error_for_status()?.text().await?;
+        println!("Text\n\n{:#?}\n\n", text);
+        let json = serde_json::from_str(&text)?;
+
+        // let json = response.error_for_status()?.json().await?;
+        println!("Response\n\n{:#?}\n\n", json);
+        Ok(json)
     }
 
     pub(crate) async fn xrpc_post<D1: Serialize, D2: DeserializeOwned>(
@@ -269,7 +271,7 @@ impl From<BiskyError> for StreamError {
     }
 }
 
-impl<'a, D: DeserializeOwned> RecordStream<'a, D> {
+impl<'a, D: DeserializeOwned+ std::fmt::Debug> RecordStream<'a, D> {
     pub async fn next(&mut self) -> Result<Record<D>, StreamError> {
         if let Some(record) = self.queue.pop_front() {
             Ok(record)
@@ -305,7 +307,7 @@ impl<'a, D: DeserializeOwned> RecordStream<'a, D> {
 }
 
 impl Client {
-    pub async fn repo_get_record<D: DeserializeOwned>(
+    pub async fn repo_get_record<D: DeserializeOwned + std::fmt::Debug>(
         &mut self,
         repo: &str,
         collection: &str,
@@ -321,7 +323,7 @@ impl Client {
             .await
     }
 
-    pub async fn repo_list_records<D: DeserializeOwned>(
+    pub async fn repo_list_records<D: DeserializeOwned + std::fmt::Debug>(
         &mut self,
         repo: &str,
         collection: &str,
@@ -381,7 +383,7 @@ impl Client {
         .await
     }
 
-    pub async fn repo_stream_records<'a, D: DeserializeOwned>(
+    pub async fn repo_stream_records<'a, D: DeserializeOwned + std::fmt::Debug>(
         &'a mut self,
         repo: &'a str,
         collection: &'a str,
@@ -401,5 +403,46 @@ impl Client {
         } else {
             Err(StreamError::NoCursor)
         }
+    }
+
+    pub async fn bsky_list_notifications<D: DeserializeOwned + std::fmt::Debug>(
+        &mut self,
+        mut limit: usize,
+        seen_at: Option<&str>,
+        cursor: Option<&str>,
+    ) -> Result<(Vec<Notification<D>>, Option<String>), BiskyError> {
+
+        let mut notifications = Vec::new();
+        let mut response_cursor = None;
+
+        while limit > 0 {
+            let query_limit = std::cmp::min(limit, 100).to_string();
+            let mut query = Vec::from([
+                ("limit", query_limit.as_ref()),
+            ]);
+
+            if let Some(cursor) = cursor {
+                query.push(("cursor", cursor));
+            }
+            if let Some(seen_at) = seen_at{
+                query.push(("seenAt", seen_at));
+            }
+
+            let mut response = self
+                .xrpc_get::<ListNotificationsOutput<D>>("app.bsky.notification.listNotifications", Some(&query))
+                .await?;
+
+            if response.notifications.is_empty() {
+                // caller requested more records than are available
+                break;
+            }
+
+            limit -= response.notifications.len();
+
+            response_cursor = response.cursor.take();
+            notifications.append(&mut response.notifications);
+        }
+
+        Ok((notifications, response_cursor))
     }
 }

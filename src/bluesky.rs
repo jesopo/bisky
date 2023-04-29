@@ -1,10 +1,9 @@
 use crate::atproto::{Client, RecordStream, StreamError};
 use crate::lexicon::app::bsky::actor::ProfileViewDetailed;
 use crate::lexicon::app::bsky::feed::Post;
-use crate::lexicon::com::atproto::repo::{Record};
+use crate::lexicon::app::bsky::notification::{Notification, NotificationRecord};
+use crate::lexicon::com::atproto::repo::Record;
 use crate::errors::BiskyError;
-use crate::storage::Storage;
-use crate::atproto::UserSession;
 
 pub struct Bluesky {
     client: Client,
@@ -74,4 +73,15 @@ impl BlueskyUser<'_> {
             .repo_stream_records(&self.username, "app.bsky.feed.post")
             .await
     }
+    /// Get the notifications for the user
+    ///app.bsky.notification.listNotifications#
+    pub async fn list_notifications(&mut self) -> Result<Vec<Notification<NotificationRecord>>, BiskyError>{
+        self.client
+            .bsky_list_notifications(usize::MAX, None, None)
+            .await
+            .map(|l| l.0)
+    }
+    // pub async fn update_seen(&mut self){
+
+    //}
 }

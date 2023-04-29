@@ -1,13 +1,19 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
+pub struct StrongRef{
+    pub uri: String,
+    pub cid: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Record<T> {
     pub uri: String,
     pub cid: String,
     pub value: T,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct ListRecordsOutput<T> {
     pub cursor: Option<String>,
     pub records: Vec<Record<T>>,
