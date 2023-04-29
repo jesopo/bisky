@@ -1,9 +1,9 @@
 use crate::atproto::{Client, RecordStream, StreamError};
+use crate::errors::BiskyError;
 use crate::lexicon::app::bsky::actor::ProfileViewDetailed;
 use crate::lexicon::app::bsky::feed::Post;
 use crate::lexicon::app::bsky::notification::{Notification, NotificationRecord};
-use crate::lexicon::com::atproto::repo::{Record, CreateRecordOutput, BlobOutput};
-use crate::errors::BiskyError;
+use crate::lexicon::com::atproto::repo::{BlobOutput, CreateRecordOutput, Record};
 use chrono::Utc;
 pub struct Bluesky {
     client: Client,
@@ -49,24 +49,27 @@ impl<'a> BlueskyMe<'a> {
     }
     /// Get the notifications for the user
     ///app.bsky.notification.listNotifications#
-    pub async fn list_notifications(&mut self, limit: usize) -> Result<Vec<Notification<NotificationRecord>>, BiskyError>{
+    pub async fn list_notifications(
+        &mut self,
+        limit: usize,
+    ) -> Result<Vec<Notification<NotificationRecord>>, BiskyError> {
         self.client
             .bsky_list_notifications(limit, None, None)
             .await
             .map(|l| l.0)
     }
     /// Tell Bsky when the notifications were seen, marking them as old
-    pub async fn update_seen(&mut self) -> Result<(), BiskyError>{
-        self.client
-            .bsky_update_seen(Utc::now())
-            .await
+    pub async fn update_seen(&mut self) -> Result<(), BiskyError> {
+        self.client.bsky_update_seen(Utc::now()).await
     }
 
     /// Upload a Blob(Image) for use in a Bsky Post later
-    pub async fn upload_blob(&mut self, blob: &[u8], mime_type: &str) -> Result<BlobOutput, BiskyError>{
-        self.client
-            .repo_upload_blob(blob, mime_type)
-            .await
+    pub async fn upload_blob(
+        &mut self,
+        blob: &[u8],
+        mime_type: &str,
+    ) -> Result<BlobOutput, BiskyError> {
+        self.client.repo_upload_blob(blob, mime_type).await
     }
 }
 pub struct BlueskyUser<'a> {

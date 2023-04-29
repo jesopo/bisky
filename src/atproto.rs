@@ -1,16 +1,17 @@
-
-use crate::errors::{BiskyError, ApiError};
-use crate::lexicon::app::bsky::notification::{Notification, ListNotificationsOutput, UpdateSeen};
-use crate::lexicon::com::atproto::repo::{CreateRecord, ListRecordsOutput, Record, CreateUploadBlob};
+use crate::errors::{ApiError, BiskyError};
+use crate::lexicon::app::bsky::notification::{ListNotificationsOutput, Notification, UpdateSeen};
+use crate::lexicon::com::atproto::repo::{
+    CreateRecord, CreateUploadBlob, ListRecordsOutput, Record,
+};
 use crate::lexicon::com::atproto::server::{CreateUserSession, RefreshUserSession};
 use crate::storage::Storage;
 use chrono::{DateTime, Utc};
-use reqwest::header::HeaderValue;
-use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use derive_builder::Builder;
+use reqwest::header::HeaderValue;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde_json::json;
 use std::collections::VecDeque;
 use std::sync::Arc;
-use serde_json::json;
 use std::time::Duration;
 
 #[derive(Debug, Default, Deserialize, Clone, Serialize)]
@@ -51,11 +52,11 @@ impl From<RefreshUserSession> for UserSession {
         }
     }
 }
-pub trait StorableSession: Storage<UserSession, Error=BiskyError> {}
+pub trait StorableSession: Storage<UserSession, Error = BiskyError> {}
 
 #[derive(Clone, Builder)]
 pub struct Client {
-    #[builder(default=r#"reqwest::Url::parse("https://bsky.social").unwrap()"#)]
+    #[builder(default = r#"reqwest::Url::parse("https://bsky.social").unwrap()"#)]
     service: reqwest::Url,
     #[builder(default, setter(strip_option))]
     storage: Option<Arc<dyn StorableSession>>,
@@ -63,19 +64,21 @@ pub struct Client {
     pub session: Option<UserSession>,
 }
 
-impl ClientBuilder{
-    pub fn session(&mut self, session: Option<UserSession>) -> &mut Self{
+impl ClientBuilder {
+    pub fn session(&mut self, session: Option<UserSession>) -> &mut Self {
         self.session = Some(session);
         self
     }
-    pub async fn session_from_storage<T: StorableSession + 'static>(&mut self, storage: T) -> &mut Self{
+    pub async fn session_from_storage<T: StorableSession + 'static>(
+        &mut self,
+        storage: T,
+    ) -> &mut Self {
         let session = storage.get().await.ok();
         self.session = Some(session);
         self.storage = Some(Some(Arc::new(storage)));
         self
     }
 }
-
 
 trait GetService {
     fn get_service(&self) -> &reqwest::Url;
@@ -88,22 +91,24 @@ impl GetService for Client {
     }
 
     fn access_token(&self) -> Result<&str, BiskyError> {
-        match &self.session{
+        match &self.session {
             Some(s) => Ok(&s.jwt.access),
-            None =>  Err(BiskyError::MissingSession),
+            None => Err(BiskyError::MissingSession),
         }
     }
 }
 
 impl Client {
-
     ///Update session and put it in storage if Storage is Some
-    pub async fn update_session(&mut self, session: Option<UserSession>) -> Result<(), BiskyError>{
-        self.session=session;
+    pub async fn update_session(&mut self, session: Option<UserSession>) -> Result<(), BiskyError> {
+        self.session = session;
 
         // Store updated session if storage is provided
-        if let Some(storage) = &mut self.storage{
-            storage.set(self.session.as_ref()).await.map_err(|e| BiskyError::StorageError(e.to_string()))?;
+        if let Some(storage) = &mut self.storage {
+            storage
+                .set(self.session.as_ref())
+                .await
+                .map_err(|e| BiskyError::StorageError(e.to_string()))?;
         }
         Ok(())
     }
@@ -141,7 +146,6 @@ impl Client {
 
         self.update_session(Some(user_session)).await?;
         Ok(())
-
     }
 
     async fn xrpc_refresh_token(&mut self) -> Result<(), BiskyError> {
@@ -154,10 +158,7 @@ impl Client {
                     .join("xrpc/com.atproto.server.refreshSession")
                     .unwrap(),
             )
-            .header(
-                "authorization",
-                format!("Bearer {}", session.jwt.refresh),
-            )
+            .header("authorization", format!("Bearer {}", session.jwt.refresh))
             .send()
             .await?
             .error_for_status()?
@@ -230,14 +231,13 @@ impl Client {
             path: &str,
             body: &str,
         ) -> Result<reqwest::RequestBuilder, BiskyError> {
-
-            println!("BODY: {:#?}", body);            
+            println!("BODY: {:#?}", body);
 
             let req = reqwest::Client::new()
-            .post(self_.get_service().join(&format!("xrpc/{path}")).unwrap())
-            .header("content-type", "application/json")
-            .header("authorization", format!("Bearer {}", self_.access_token()?))
-            .body(body.to_string());
+                .post(self_.get_service().join(&format!("xrpc/{path}")).unwrap())
+                .header("content-type", "application/json")
+                .header("authorization", format!("Bearer {}", self_.access_token()?))
+                .body(body.to_string());
 
             println!("REQ: {:#?}", req);
             Ok(req)
@@ -254,7 +254,7 @@ impl Client {
                 return Err(BiskyError::ApiError(error));
             }
         }
-         let text: String = response.error_for_status()?.text().await?;
+        let text: String = response.error_for_status()?.text().await?;
         println!("Text\n\n{:#?}\n\n", text);
         let json = serde_json::from_str(&text)?;
         // let json = response.error_for_status()?.json::<D2>().await?;
@@ -268,13 +268,12 @@ impl Client {
         body: &[u8],
         mime_type: &str,
     ) -> Result<D2, BiskyError> {
-
         fn make_request<T: GetService>(
             self_: &T,
             path: &str,
             body: &[u8],
             mime_type: &str,
-        ) -> Result<reqwest::RequestBuilder, BiskyError> {     
+        ) -> Result<reqwest::RequestBuilder, BiskyError> {
             Ok(reqwest::Client::new()
                 .post(self_.get_service().join(&format!("xrpc/{path}")).unwrap())
                 .header("content-type", mime_type)
@@ -293,7 +292,7 @@ impl Client {
                 return Err(BiskyError::ApiError(error));
             }
         }
-         let text: String = response.error_for_status()?.text().await?;
+        let text: String = response.error_for_status()?.text().await?;
         println!("Text\n\n{:#?}\n\n", text);
         let json = serde_json::from_str(&text)?;
         // let json = response.error_for_status()?.json::<D2>().await?;
@@ -330,11 +329,11 @@ impl Client {
                 return Err(BiskyError::ApiError(error));
             }
         }
-         let text: String = response.error_for_status()?.text().await?;
-         match text.is_empty(){
+        let text: String = response.error_for_status()?.text().await?;
+        match text.is_empty() {
             true => Ok(()),
-            false => Err(BiskyError::UnexpectedResponse(text))
-         }
+            false => Err(BiskyError::UnexpectedResponse(text)),
+        }
     }
 }
 
@@ -358,7 +357,7 @@ impl From<BiskyError> for StreamError {
     }
 }
 
-impl<'a, D: DeserializeOwned+ std::fmt::Debug> RecordStream<'a, D> {
+impl<'a, D: DeserializeOwned + std::fmt::Debug> RecordStream<'a, D> {
     pub async fn next(&mut self) -> Result<Record<D>, StreamError> {
         if let Some(record) = self.queue.pop_front() {
             Ok(record)
@@ -475,12 +474,8 @@ impl Client {
         blob: &[u8],
         mime_type: &str,
     ) -> Result<D, BiskyError> {
-        self.xrpc_post_binary(
-            "com.atproto.repo.uploadBlob",
-            blob,
-            mime_type
-        )
-        .await
+        self.xrpc_post_binary("com.atproto.repo.uploadBlob", blob, mime_type)
+            .await
     }
 
     pub async fn repo_stream_records<'a, D: DeserializeOwned + std::fmt::Debug>(
@@ -511,25 +506,25 @@ impl Client {
         seen_at: Option<&str>,
         cursor: Option<&str>,
     ) -> Result<(Vec<Notification<D>>, Option<String>), BiskyError> {
-
         let mut notifications = Vec::new();
         let mut response_cursor = None;
 
         while limit > 0 {
             let query_limit = std::cmp::min(limit, 100).to_string();
-            let mut query = Vec::from([
-                ("limit", query_limit.as_ref()),
-            ]);
+            let mut query = Vec::from([("limit", query_limit.as_ref())]);
 
             if let Some(cursor) = cursor {
                 query.push(("cursor", cursor));
             }
-            if let Some(seen_at) = seen_at{
+            if let Some(seen_at) = seen_at {
                 query.push(("seenAt", seen_at));
             }
 
             let mut response = self
-                .xrpc_get::<ListNotificationsOutput<D>>("app.bsky.notification.listNotifications", Some(&query))
+                .xrpc_get::<ListNotificationsOutput<D>>(
+                    "app.bsky.notification.listNotifications",
+                    Some(&query),
+                )
                 .await?;
 
             if response.notifications.is_empty() {
@@ -546,17 +541,8 @@ impl Client {
         Ok((notifications, response_cursor))
     }
 
-    pub async fn bsky_update_seen(
-        &mut self,
-        seen_at: DateTime<Utc>,
-    ) -> Result<(), BiskyError> {
-        self.xrpc_post_no_response(
-            "app.bsky.notification.updateSeen",
-            &UpdateSeen {
-               seen_at
-            },
-        )
-        .await
-
+    pub async fn bsky_update_seen(&mut self, seen_at: DateTime<Utc>) -> Result<(), BiskyError> {
+        self.xrpc_post_no_response("app.bsky.notification.updateSeen", &UpdateSeen { seen_at })
+            .await
     }
 }

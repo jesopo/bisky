@@ -1,9 +1,9 @@
 use miette::Diagnostic;
-use thiserror::Error;
 use serde::Deserialize;
+use thiserror::Error;
 
 #[derive(Debug, Error, Diagnostic)]
-pub enum BiskyError{
+pub enum BiskyError {
     #[error("Bad Credentials!")]
     BadCredentials,
     #[error("Unexpected Response: {0}")]

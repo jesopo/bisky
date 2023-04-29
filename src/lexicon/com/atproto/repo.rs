@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct StrongRef{
+pub struct StrongRef {
     pub uri: String,
     pub cid: String,
 }
@@ -45,14 +45,13 @@ pub struct Link {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Blob {
-    #[serde(rename(deserialize = "$type", serialize="$type"))]
+    #[serde(rename(deserialize = "$type", serialize = "$type"))]
     pub rust_type: String,
     pub r#ref: Link,
-    #[serde(rename(deserialize = "mimeType", serialize="mimeType"))]
+    #[serde(rename(deserialize = "mimeType", serialize = "mimeType"))]
     pub mime_type: String,
-    pub size: usize
+    pub size: usize,
 }
-
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BlobOutput {

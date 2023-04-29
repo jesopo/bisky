@@ -1,16 +1,16 @@
+use super::embed::Image;
+use crate::lexicon::com::atproto::repo::StrongRef;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use crate::lexicon::com::atproto::repo::StrongRef;
-use super::embed::Image;
 #[derive(Debug, Deserialize, Serialize)]
-pub struct ImagesEmbed{
-    #[serde(rename(deserialize = "$type", serialize="$type"))]
+pub struct ImagesEmbed {
+    #[serde(rename(deserialize = "$type", serialize = "$type"))]
     pub rust_type: String,
-    pub images: Vec<Image>
+    pub images: Vec<Image>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub enum Embeds{
+pub enum Embeds {
     #[serde(rename(serialize = "images"))]
     Images(ImagesEmbed),
     // "embed": {
@@ -25,7 +25,7 @@ pub enum Embeds{
 pub struct Post {
     #[serde(rename(deserialize = "createdAt", serialize = "createdAt"))]
     pub created_at: DateTime<Utc>,
-    #[serde(rename(deserialize = "$type", serialize="$type"))]
+    #[serde(rename(deserialize = "$type", serialize = "$type"))]
     pub rust_type: String,
     pub text: String,
     pub embed: Option<ImagesEmbed>,

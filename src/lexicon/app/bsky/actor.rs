@@ -33,7 +33,6 @@ pub struct ProfileView {
     pub indexed_at: Option<String>,
 }
 
-
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ProfileViewDetailed {
     pub did: String,
