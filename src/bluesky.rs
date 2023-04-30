@@ -1,8 +1,8 @@
-use crate::atproto::{Client, RecordStream, StreamError};
+use crate::atproto::{Client, RecordStream, StreamError, NotificationStream};
 use crate::errors::BiskyError;
 use crate::lexicon::app::bsky::actor::ProfileViewDetailed;
 use crate::lexicon::app::bsky::feed::Post;
-use crate::lexicon::app::bsky::notification::{Notification, NotificationRecord};
+use crate::lexicon::app::bsky::notification::{Notification, NotificationRecord, NotificationCount};
 use crate::lexicon::com::atproto::repo::{BlobOutput, CreateRecordOutput, Record};
 use chrono::Utc;
 pub struct Bluesky {
@@ -47,6 +47,16 @@ impl<'a> BlueskyMe<'a> {
             .repo_create_record(&self.username, "app.bsky.feed.post", &post)
             .await
     }
+        /// Get the notifications for the user
+    ///app.bsky.notification.listNotifications#
+    pub async fn get_notification_count(
+        &mut self,
+        seen_at: Option<&str>,
+    ) -> Result<NotificationCount, BiskyError> {
+        self.client
+            .bsky_get_notification_count(seen_at)
+            .await
+    }
     /// Get the notifications for the user
     ///app.bsky.notification.listNotifications#
     pub async fn list_notifications(
@@ -57,6 +67,12 @@ impl<'a> BlueskyMe<'a> {
             .bsky_list_notifications(limit, None, None)
             .await
             .map(|l| l.0)
+    }
+
+    pub async fn stream_notifications(&mut self) -> Result<NotificationStream<Notification<NotificationRecord>>, StreamError> {
+        self.client
+            .bsky_stream_notifications( None)
+            .await
     }
     /// Tell Bsky when the notifications were seen, marking them as old
     pub async fn update_seen(&mut self) -> Result<(), BiskyError> {

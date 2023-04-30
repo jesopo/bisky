@@ -1,13 +1,12 @@
 use crate::errors::{ApiError, BiskyError};
-use crate::lexicon::app::bsky::notification::{ListNotificationsOutput, Notification, UpdateSeen};
+use crate::lexicon::app::bsky::notification::{ListNotificationsOutput, Notification, UpdateSeen, NotificationCount};
 use crate::lexicon::com::atproto::repo::{
-    CreateRecord, CreateUploadBlob, ListRecordsOutput, Record,
+    CreateRecord,ListRecordsOutput, Record,
 };
 use crate::lexicon::com::atproto::server::{CreateUserSession, RefreshUserSession};
 use crate::storage::Storage;
 use chrono::{DateTime, Utc};
 use derive_builder::Builder;
-use reqwest::header::HeaderValue;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
 use std::collections::VecDeque;
@@ -210,11 +209,11 @@ impl Client {
             }
         }
 
-        // let text: String = response.error_for_status()?.text().await?;
-        // println!("Text\n\n{:#?}\n\n", text);
-        // let json = serde_json::from_str(&text)?;
+        let text: String = response.error_for_status()?.text().await?;
+        println!("Text\n\n{:#?}\n\n", text);
+        let json = serde_json::from_str(&text)?;
 
-        let json = response.error_for_status()?.json().await?;
+        // let json = response.error_for_status()?.json().await?;
         // println!("Response\n\n{:#?}\n\n", json);
         Ok(json)
     }
@@ -392,6 +391,47 @@ impl<'a, D: DeserializeOwned + std::fmt::Debug> RecordStream<'a, D> {
     }
 }
 
+pub struct NotificationStream<'a, D: DeserializeOwned> {
+    client: &'a mut Client,
+    limit: usize,
+    seen_at: Option<&'a str>,
+    // collection: &'a str,
+    queue: VecDeque<Notification<D>>,
+    cursor: String,
+}
+
+impl<'a, D: DeserializeOwned + std::fmt::Debug> NotificationStream<'a, D> {
+    pub async fn next(&mut self) -> Result<Notification<D>, StreamError> {
+        if let Some(notification) = self.queue.pop_front() {
+            Ok(notification)
+        } else {
+            loop {
+                let (notifications, cursor) = self
+                    .client
+                    .bsky_list_notifications(
+                        self.limit,
+                        self.seen_at,
+                        Some(self.cursor.as_ref()),
+                    )
+                    .await?;
+
+                let mut notifications = VecDeque::from(notifications);
+                if let Some(first_notification) = notifications.pop_front() {
+                    if let Some(cursor) = cursor {
+                        self.cursor = cursor;
+                    } else {
+                        return Err(StreamError::NoCursor);
+                    }
+
+                    self.queue.append(&mut notifications);
+                    return Ok(first_notification);
+                } else {
+                    tokio::time::sleep(Duration::from_secs(15)).await;
+                }
+            }
+        }
+    }
+}
 impl Client {
     pub async fn repo_get_record<D: DeserializeOwned + std::fmt::Debug>(
         &mut self,
@@ -499,6 +539,25 @@ impl Client {
             Err(StreamError::NoCursor)
         }
     }
+    /// Get the user's notification count. Can take a date to mark them as seen
+    pub async fn bsky_get_notification_count(
+        &mut self,
+        seen_at: Option<&str>,
+    ) -> Result<NotificationCount, BiskyError> {
+        let mut query = Vec::new();
+
+        if let Some(seen_at) = seen_at {
+            query.push(("seen_at", seen_at));
+        }
+        let res = self
+        .xrpc_get::<NotificationCount>(
+            "app.bsky.notification.getUnreadCount",
+            Some(&query),
+        )
+        .await?;
+    Ok(res)
+
+    }
 
     pub async fn bsky_list_notifications<D: DeserializeOwned + std::fmt::Debug>(
         &mut self,
@@ -545,4 +604,29 @@ impl Client {
         self.xrpc_post_no_response("app.bsky.notification.updateSeen", &UpdateSeen { seen_at })
             .await
     }
+
+
+
+    pub async fn bsky_stream_notifications<'a, D: DeserializeOwned + std::fmt::Debug>(
+        &'a mut self,
+        seen_at: Option<&'a str>,
+    ) -> Result<NotificationStream<'a, D>, StreamError> {
+        let (_, cursor) = self
+            .bsky_list_notifications::<D>(usize::MAX, seen_at, None)
+            .await?;
+
+        if let Some(cursor) = cursor {
+            Ok(NotificationStream {
+                client: self,
+                queue: VecDeque::new(),
+                cursor,
+                limit: usize::MAX,
+                seen_at,
+            })
+        } else {
+            Err(StreamError::NoCursor)
+        }
+    }
+
+
 }

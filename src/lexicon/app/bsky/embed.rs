@@ -1,4 +1,4 @@
-use crate::lexicon::com::atproto::repo::{Blob, Link};
+use crate::lexicon::com::atproto::repo::Blob;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]

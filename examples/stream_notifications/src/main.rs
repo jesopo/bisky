@@ -31,10 +31,10 @@ async fn main() {
     .unwrap();
 
     let mut bsky = Bluesky::new(client);
-    let mut profile = bsky.user(args.username).unwrap();
-    let mut stream = profile.stream_posts().await.unwrap();
+    let mut profile = bsky.me().unwrap();
+    let mut stream = profile.stream_notifications().await.unwrap();
 
-    while let Ok(record) = stream.next().await {
-        println!("{:#?}", record);
+    while let Ok(notification) = stream.next().await {
+        println!("{:#?}", notification);
     }
 }

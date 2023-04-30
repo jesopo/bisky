@@ -59,3 +59,8 @@ pub struct UpdateSeen {
     #[serde(rename(serialize = "seenAt"))]
     pub seen_at: DateTime<Utc>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct NotificationCount {
+    pub count: usize,
+}

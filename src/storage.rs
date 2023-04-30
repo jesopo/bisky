@@ -1,13 +1,13 @@
+use crate::atproto::StorableSession;
+use crate::atproto::UserSession;
+use crate::errors::BiskyError;
 use miette::Diagnostic;
-use thiserror::Error;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::marker::PhantomData;
 use std::marker::Sync;
 use std::path::PathBuf;
-use crate::atproto::StorableSession;
-use crate::atproto::UserSession;
-use crate::errors::BiskyError;
+use thiserror::Error;
 
 #[async_trait::async_trait]
 pub trait Storage<T: DeserializeOwned + Serialize + Sync> {
@@ -37,7 +37,7 @@ pub enum FileError {
     #[error(transparent)]
     IoError(#[from] std::io::Error),
     #[error(transparent)]
-    JsonError(#[from] serde_json::Error)
+    JsonError(#[from] serde_json::Error),
 }
 
 #[async_trait::async_trait]
@@ -54,4 +54,4 @@ impl<'a, T: DeserializeOwned + Serialize + Sync> Storage<T> for File<'a, T> {
     }
 }
 
-impl<'a> StorableSession for File<'a, UserSession>{}
+impl<'a> StorableSession for File<'a, UserSession> {}
