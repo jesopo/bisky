@@ -1,4 +1,7 @@
 use crate::errors::{ApiError, BiskyError};
+use crate::lexicon::app::bsky::actor::ProfileView;
+use crate::lexicon::app::bsky::feed::{Like, GetLikesOutput, GetLikesLike};
+use crate::lexicon::app::bsky::graph::{Follow, GetFollowsOutput, GetFollowersOutput};
 use crate::lexicon::app::bsky::notification::{ListNotificationsOutput, Notification, UpdateSeen, NotificationCount};
 use crate::lexicon::com::atproto::repo::{
     CreateRecord,ListRecordsOutput, Record,
@@ -627,26 +630,22 @@ impl Client {
             Err(StreamError::NoCursor)
         }
     }
-
-    pub async fn bsky_get_likes<D: DeserializeOwned + std::fmt::Debug>(
+    ///app.bsky.feed.getLikes
+    pub async fn bsky_get_likes(
         &mut self,
-        repo: &str,
-        collection: &str,
+        uri: &str,
         mut limit: usize,
-        reverse: bool,
-        mut cursor: Option<String>,
-    ) -> Result<(Vec<Record<D>>, Option<String>), BiskyError> {
-        let reverse = reverse.to_string();
+        cursor: Option<&str>,
+    ) -> Result<(Vec<GetLikesLike>, Option<String>), BiskyError> {
 
-        let mut records = Vec::new();
+        let mut likes = Vec::new();
+        let mut response_cursor = None;
 
         while limit > 0 {
             let query_limit = std::cmp::min(limit, 100).to_string();
             let mut query = Vec::from([
-                ("repo", repo),
-                ("collection", collection),
-                ("reverse", &reverse),
-                ("limit", &query_limit),
+                ("uri", uri),
+                ("limit", query_limit.as_str()),
             ]);
 
             if let Some(cursor) = cursor.as_ref() {
@@ -654,84 +653,78 @@ impl Client {
             }
 
             let mut response = self
-                .xrpc_get::<ListRecordsOutput<D>>("com.atproto.repo.listRecords", Some(&query))
+                .xrpc_get::<GetLikesOutput>("app.bsky.feed.getLikes", Some(&query))
                 .await?;
 
-            if response.records.is_empty() {
+            if response.likes.is_empty() {
                 // caller requested more records than are available
                 break;
             }
 
-            limit -= response.records.len();
+            limit -= response.likes.len();
 
-            cursor = response.cursor.take();
-            records.append(&mut response.records);
+            response_cursor = response.cursor.take();
+            likes.append(&mut response.likes);
         }
 
-        Ok((records, cursor))
+        Ok((likes, response_cursor))
     }
 
-    pub async fn bsky_get_follows<D: DeserializeOwned + std::fmt::Debug>(
+    ///app.bsky.graph.getFollows
+    pub async fn bsky_get_follows(
         &mut self,
-        repo: &str,
-        collection: &str,
+        actor: &str,
         mut limit: usize,
-        reverse: bool,
-        mut cursor: Option<String>,
-    ) -> Result<(Vec<Record<D>>, Option<String>), BiskyError> {
-        let reverse = reverse.to_string();
+        cursor: Option<&str>,
+    ) -> Result<(Vec<ProfileView>, Option<String>), BiskyError> {
 
-        let mut records = Vec::new();
+        let mut follows = Vec::new();
+        let mut response_cursor=None;
 
         while limit > 0 {
             let query_limit = std::cmp::min(limit, 100).to_string();
             let mut query = Vec::from([
-                ("repo", repo),
-                ("collection", collection),
-                ("reverse", &reverse),
+                ("actor", actor),
                 ("limit", &query_limit),
             ]);
 
-            if let Some(cursor) = cursor.as_ref() {
+            if let Some(cursor) = cursor {
                 query.push(("cursor", cursor));
             }
 
             let mut response = self
-                .xrpc_get::<ListRecordsOutput<D>>("com.atproto.repo.listRecords", Some(&query))
+                .xrpc_get::<GetFollowsOutput>("app.bsky.graph.getFollows", Some(&query))
                 .await?;
 
-            if response.records.is_empty() {
+            if response.follows.is_empty() {
                 // caller requested more records than are available
                 break;
             }
 
-            limit -= response.records.len();
+            limit -= response.follows.len();
 
-            cursor = response.cursor.take();
-            records.append(&mut response.records);
+            response_cursor = response.cursor.take();
+            follows.append(&mut response.follows);
         }
 
-        Ok((records, cursor))
+        Ok((follows, response_cursor))
     }
 
-    pub async fn bsky_get_followers<D: DeserializeOwned + std::fmt::Debug>(
+    ///app.bsky.graph.getFollowers
+    pub async fn bsky_get_followers(
         &mut self,
-        repo: &str,
-        collection: &str,
+        actor: &str,
         mut limit: usize,
-        reverse: bool,
-        mut cursor: Option<String>,
-    ) -> Result<(Vec<Record<D>>, Option<String>), BiskyError> {
-        let reverse = reverse.to_string();
+        cursor: Option<&str>,
+    ) -> Result<(Vec<ProfileView>, Option<String>), BiskyError> {
 
-        let mut records = Vec::new();
+        let mut followers = Vec::new();
+        let mut response_cursor=None;
 
         while limit > 0 {
             let query_limit = std::cmp::min(limit, 100).to_string();
             let mut query = Vec::from([
-                ("repo", repo),
-                ("collection", collection),
-                ("reverse", &reverse),
+                ("actor", actor),
                 ("limit", &query_limit),
             ]);
 
@@ -740,21 +733,21 @@ impl Client {
             }
 
             let mut response = self
-                .xrpc_get::<ListRecordsOutput<D>>("com.atproto.repo.listRecords", Some(&query))
+                .xrpc_get::<GetFollowersOutput>("app.bsky.graph.getFollowers", Some(&query))
                 .await?;
 
-            if response.records.is_empty() {
+            if response.followers.is_empty() {
                 // caller requested more records than are available
                 break;
             }
 
-            limit -= response.records.len();
+            limit -= response.followers.len();
 
-            cursor = response.cursor.take();
-            records.append(&mut response.records);
+            response_cursor = response.cursor.take();
+            followers.append(&mut response.followers);
         }
 
-        Ok((records, cursor))
+        Ok((followers, response_cursor))
     }
 
 }

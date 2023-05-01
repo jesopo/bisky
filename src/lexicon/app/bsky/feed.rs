@@ -10,8 +10,13 @@ pub struct ImagesEmbed {
     pub images: Vec<Image>,
 }
 
+
+// "app.bsky.embed.images",
+// "app.bsky.embed.external",
+// "app.bsky.embed.record",
+// "app.bsky.embed.recordWithMedia"
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(untagged)]
+#[serde(tag="$type")]
 pub enum Embeds {
     #[serde(alias = "app.bsky.embed.images")]
     Images(ImagesEmbed),
@@ -107,14 +112,14 @@ pub struct ReplyRef {
 pub struct GetLikes {
     pub uri: String,
     pub cid: Option<String>,
-    pub limit: Option<usizes>,
+    pub limit: Option<usize>,
     pub cursor: Option<String>
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetLikesOutput {
     pub uri: String,
     pub cid: Option<String>,
-    pub likes: Vec<GetLikessLike>,
+    pub likes: Vec<GetLikesLike>,
     pub cursor: Option<String>
 }
 

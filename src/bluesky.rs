@@ -1,7 +1,7 @@
 use crate::atproto::{Client, RecordStream, StreamError, NotificationStream};
 use crate::errors::BiskyError;
-use crate::lexicon::app::bsky::actor::ProfileViewDetailed;
-use crate::lexicon::app::bsky::feed::Post;
+use crate::lexicon::app::bsky::actor::{ProfileViewDetailed, ProfileView};
+use crate::lexicon::app::bsky::feed::{Post, GetLikesLike};
 use crate::lexicon::app::bsky::notification::{Notification, NotificationRecord, NotificationCount};
 use crate::lexicon::com::atproto::repo::{BlobOutput, CreateRecordOutput, Record};
 use chrono::Utc;
@@ -14,13 +14,13 @@ impl Bluesky {
         Self { client }
     }
 
-    pub fn user(&mut self, username: String) -> Result<BlueskyUser, BiskyError> {
+    pub fn user(&mut self, username: &str) -> Result<BlueskyUser, BiskyError> {
         let Some(_session) = &self.client.session else{
             return Err(BiskyError::MissingSession);
         };
         Ok(BlueskyUser {
             client: &mut self.client,
-            username,
+            username: username.to_string(),
         })
     }
 
@@ -101,6 +101,36 @@ impl BlueskyUser<'_> {
                 Some(&[("actor", &self.username)]),
             )
             .await
+    }
+    pub async fn get_likes(&mut self, limit: usize,cursor: Option<&str>) -> Result<Vec<GetLikesLike>, BiskyError> {
+        self.client
+            .bsky_get_likes(
+                &format!("at://{}",&self.username),
+                limit,
+                cursor,
+            )
+            .await
+            .map(|l| l.0)
+    }
+    pub async fn get_follows(&mut self, limit: usize, cursor: Option<&str>) -> Result<Vec<ProfileView>, BiskyError> {
+        self.client
+            .bsky_get_follows(
+                &self.username,
+                limit,
+                cursor,
+            )
+            .await
+            .map(|l| l.0)
+    }
+    pub async fn get_followers(&mut self, limit: usize, cursor: Option<&str>) -> Result<Vec<ProfileView>, BiskyError> {
+        self.client
+        .bsky_get_followers(
+            &self.username,
+            limit,
+            cursor
+        )
+        .await
+        .map(|l| l.0)
     }
     pub async fn get_record(&mut self, repo: &str, collection: &str, rkey: &str) -> Result<ProfileViewDetailed, BiskyError> {
         self.client
