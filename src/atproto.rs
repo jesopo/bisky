@@ -628,5 +628,133 @@ impl Client {
         }
     }
 
+    pub async fn bsky_get_likes<D: DeserializeOwned + std::fmt::Debug>(
+        &mut self,
+        repo: &str,
+        collection: &str,
+        mut limit: usize,
+        reverse: bool,
+        mut cursor: Option<String>,
+    ) -> Result<(Vec<Record<D>>, Option<String>), BiskyError> {
+        let reverse = reverse.to_string();
+
+        let mut records = Vec::new();
+
+        while limit > 0 {
+            let query_limit = std::cmp::min(limit, 100).to_string();
+            let mut query = Vec::from([
+                ("repo", repo),
+                ("collection", collection),
+                ("reverse", &reverse),
+                ("limit", &query_limit),
+            ]);
+
+            if let Some(cursor) = cursor.as_ref() {
+                query.push(("cursor", cursor));
+            }
+
+            let mut response = self
+                .xrpc_get::<ListRecordsOutput<D>>("com.atproto.repo.listRecords", Some(&query))
+                .await?;
+
+            if response.records.is_empty() {
+                // caller requested more records than are available
+                break;
+            }
+
+            limit -= response.records.len();
+
+            cursor = response.cursor.take();
+            records.append(&mut response.records);
+        }
+
+        Ok((records, cursor))
+    }
+
+    pub async fn bsky_get_follows<D: DeserializeOwned + std::fmt::Debug>(
+        &mut self,
+        repo: &str,
+        collection: &str,
+        mut limit: usize,
+        reverse: bool,
+        mut cursor: Option<String>,
+    ) -> Result<(Vec<Record<D>>, Option<String>), BiskyError> {
+        let reverse = reverse.to_string();
+
+        let mut records = Vec::new();
+
+        while limit > 0 {
+            let query_limit = std::cmp::min(limit, 100).to_string();
+            let mut query = Vec::from([
+                ("repo", repo),
+                ("collection", collection),
+                ("reverse", &reverse),
+                ("limit", &query_limit),
+            ]);
+
+            if let Some(cursor) = cursor.as_ref() {
+                query.push(("cursor", cursor));
+            }
+
+            let mut response = self
+                .xrpc_get::<ListRecordsOutput<D>>("com.atproto.repo.listRecords", Some(&query))
+                .await?;
+
+            if response.records.is_empty() {
+                // caller requested more records than are available
+                break;
+            }
+
+            limit -= response.records.len();
+
+            cursor = response.cursor.take();
+            records.append(&mut response.records);
+        }
+
+        Ok((records, cursor))
+    }
+
+    pub async fn bsky_get_followers<D: DeserializeOwned + std::fmt::Debug>(
+        &mut self,
+        repo: &str,
+        collection: &str,
+        mut limit: usize,
+        reverse: bool,
+        mut cursor: Option<String>,
+    ) -> Result<(Vec<Record<D>>, Option<String>), BiskyError> {
+        let reverse = reverse.to_string();
+
+        let mut records = Vec::new();
+
+        while limit > 0 {
+            let query_limit = std::cmp::min(limit, 100).to_string();
+            let mut query = Vec::from([
+                ("repo", repo),
+                ("collection", collection),
+                ("reverse", &reverse),
+                ("limit", &query_limit),
+            ]);
+
+            if let Some(cursor) = cursor.as_ref() {
+                query.push(("cursor", cursor));
+            }
+
+            let mut response = self
+                .xrpc_get::<ListRecordsOutput<D>>("com.atproto.repo.listRecords", Some(&query))
+                .await?;
+
+            if response.records.is_empty() {
+                // caller requested more records than are available
+                break;
+            }
+
+            limit -= response.records.len();
+
+            cursor = response.cursor.take();
+            records.append(&mut response.records);
+        }
+
+        Ok((records, cursor))
+    }
 
 }

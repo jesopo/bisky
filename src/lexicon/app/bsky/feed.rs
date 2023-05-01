@@ -1,7 +1,7 @@
 use crate::lexicon::com::atproto::repo::StrongRef;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use super::embed::Image;
+use super::{embed::Image, actor::ProfileView};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ImagesEmbed {
@@ -77,6 +77,18 @@ pub struct Like {
     pub subject: StrongRef,
 }
 
+///like from app.bsky.feed.getLikes
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetLikesLike {
+    #[serde(rename(deserialize = "createdAt"))]
+    #[serde(rename(serialize = "createdAt"))]
+    pub created_at: DateTime<Utc>,
+    #[serde(rename(deserialize = "indexedAt"))]
+    #[serde(rename(serialize = "indexedAt"))]
+    pub indexed_at: DateTime<Utc>,
+    pub actor: ProfileView,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Repost {
     #[serde(rename(deserialize = "createdAt"))]
@@ -90,3 +102,20 @@ pub struct ReplyRef {
     pub root: StrongRef,
     pub parent: StrongRef,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetLikes {
+    pub uri: String,
+    pub cid: Option<String>,
+    pub limit: Option<usizes>,
+    pub cursor: Option<String>
+}
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetLikesOutput {
+    pub uri: String,
+    pub cid: Option<String>,
+    pub likes: Vec<GetLikessLike>,
+    pub cursor: Option<String>
+}
+
+
