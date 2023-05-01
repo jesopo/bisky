@@ -102,10 +102,10 @@ impl BlueskyUser<'_> {
             )
             .await
     }
-    pub async fn get_likes(&mut self, limit: usize,cursor: Option<&str>) -> Result<Vec<GetLikesLike>, BiskyError> {
+    pub async fn get_likes(&mut self, uri: &str, limit: usize, cursor: Option<&str>) -> Result<Vec<GetLikesLike>, BiskyError> {
         self.client
             .bsky_get_likes(
-                &format!("at://{}",&self.username),
+                uri,
                 limit,
                 cursor,
             )

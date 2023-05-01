@@ -25,3 +25,20 @@ pub struct ViewImage {
     pub full_size: String,
     pub alt: String,
 }
+
+///app.bsky.embed.external#external
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ExternalObject{
+    pub uri: String,
+    pub title: String,
+    pub description: String,
+    #[serde(rename(deserialize = "maxSize", serialize = "maxSize"))]
+    pub max_size: Option<usize>
+}
+
+///app.bsky.embed.external
+#[derive(Debug, Deserialize, Serialize)]
+pub struct External {
+    pub external: ExternalObject
+}
+

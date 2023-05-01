@@ -648,7 +648,7 @@ impl Client {
                 ("limit", query_limit.as_str()),
             ]);
 
-            if let Some(cursor) = cursor.as_ref() {
+            if let Some(cursor) = cursor {
                 query.push(("cursor", cursor));
             }
 

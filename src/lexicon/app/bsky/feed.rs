@@ -1,13 +1,24 @@
 use crate::lexicon::com::atproto::repo::StrongRef;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use super::{embed::Image, actor::ProfileView};
+use super::{embed::{Image, External}, actor::ProfileView};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ImagesEmbed {
     #[serde(rename(deserialize = "$type", serialize = "$type"))]
     pub rust_type: String,
     pub images: Vec<Image>,
+}
+
+///This and Embeds exist because one of the embeds does not have a $type field,
+/// which is cursed. CURSED
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum EmbedsContainer{
+    TaggedEmbeds(Embeds),
+    UntaggedEmbeds{
+        cid: String
+    },
 }
 
 
@@ -18,8 +29,18 @@ pub struct ImagesEmbed {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(tag="$type")]
 pub enum Embeds {
-    #[serde(alias = "app.bsky.embed.images")]
+    #[serde(rename(deserialize = "app.bsky.embed.images", serialize = "app.bsky.embed.images"))]
     Images(ImagesEmbed),
+    #[serde(rename(deserialize = "app.bsky.embed.external", serialize = "app.bsky.embed.external"))]
+    External(External),
+    #[serde(rename(deserialize = "app.bsky.embed.record"))]
+    TodoRecord,
+    #[serde(rename(deserialize = "app.bsky.embed.recordWithMedia"))]
+    TodoRecordWithMedia,
+
+    // Record(Record),
+    // #[serde(alias = "app.bsky.embed.recordWithMedia")]
+    // RecordWithMedia(RecordWithMedia),
 
     // "embed": {
     //     "$type": "app.bsky.embed.images",
