@@ -42,7 +42,7 @@ async fn main() {
     let mut me = bsky.me().unwrap();
     let notification_count = me.get_notification_count(None).await.unwrap();
     println!("Notif Count: {:#?}", notification_count);
-    // let notifications = me.list_notifications(30).await.unwrap();
+    let notifications = me.list_notifications(30).await.unwrap();
     // // println!("Notifications\n{:#?}", notifications);
     // println!("Notifications\n{:#?}", notifications.into_iter().filter(|n| n.reason == "follow").collect::<Vec<Notification<NotificationRecord>>>());
     me.update_seen().await.unwrap();

@@ -1,7 +1,8 @@
-use super::embed::Image;
 use crate::lexicon::com::atproto::repo::StrongRef;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use super::embed::Image;
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ImagesEmbed {
     #[serde(rename(deserialize = "$type", serialize = "$type"))]
@@ -10,9 +11,11 @@ pub struct ImagesEmbed {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(untagged)]
 pub enum Embeds {
-    #[serde(rename(serialize = "images"))]
+    #[serde(alias = "app.bsky.embed.images")]
     Images(ImagesEmbed),
+
     // "embed": {
     //     "$type": "app.bsky.embed.images",
     //     "images": [
@@ -28,7 +31,7 @@ pub struct Post {
     #[serde(rename(deserialize = "$type", serialize = "$type"))]
     pub rust_type: Option<String>,
     pub text: String,
-    pub embed: Option<ImagesEmbed>,
+    pub embed: Option<Embeds>,
 }
 
 #[derive(Debug, Deserialize)]

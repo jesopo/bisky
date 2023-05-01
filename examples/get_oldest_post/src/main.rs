@@ -41,9 +41,7 @@ async fn main() {
         .unwrap();
 
     let mut bsky = Bluesky::new(client);
-    println!("Client\n{:#?}", bsky);
     let mut user = bsky.user(args.username).unwrap();
-    println!("User\n{:#?}", user);
     let posts = user.list_posts().await.unwrap();
     println!("Posts\n{:#?}", posts);
     println!("oldest post: {:#?}", posts.last().unwrap());

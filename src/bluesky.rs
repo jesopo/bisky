@@ -102,6 +102,14 @@ impl BlueskyUser<'_> {
             )
             .await
     }
+    pub async fn get_record(&mut self, repo: &str, collection: &str, rkey: &str) -> Result<ProfileViewDetailed, BiskyError> {
+        self.client
+            .xrpc_get(
+                "com.atproto.repo.getRecord",
+                Some(&[("actor", &self.username)]),
+            )
+            .await
+    }
 
     pub async fn list_posts(&mut self) -> Result<Vec<Record<Post>>, BiskyError> {
         self.client
