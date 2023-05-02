@@ -1,7 +1,7 @@
 use crate::errors::{ApiError, BiskyError};
 use crate::lexicon::app::bsky::actor::ProfileView;
-use crate::lexicon::app::bsky::feed::{Like, GetLikesOutput, GetLikesLike};
-use crate::lexicon::app::bsky::graph::{Follow, GetFollowsOutput, GetFollowersOutput};
+use crate::lexicon::app::bsky::feed::{GetLikesOutput, GetLikesLike, GetPostThreadOutput, ThreadViewPostEnum};
+use crate::lexicon::app::bsky::graph::{GetFollowsOutput, GetFollowersOutput};
 use crate::lexicon::app::bsky::notification::{ListNotificationsOutput, Notification, UpdateSeen, NotificationCount};
 use crate::lexicon::com::atproto::repo::{
     CreateRecord,ListRecordsOutput, Record,
@@ -211,12 +211,11 @@ impl Client {
                 return Err(BiskyError::ApiError(error));
             }
         }
+        // let text: String = response.error_for_status()?.text().await?;
+        // println!("Text\n\n{:#?}\n\n", text);
+        // let json = serde_json::from_str(&text)?;
 
-        let text: String = response.error_for_status()?.text().await?;
-        println!("Text\n\n{:#?}\n\n", text);
-        let json = serde_json::from_str(&text)?;
-
-        // let json = response.error_for_status()?.json().await?;
+        let json: D = response.error_for_status()?.json().await?;
         // println!("Response\n\n{:#?}\n\n", json);
         Ok(json)
     }
@@ -436,21 +435,21 @@ impl<'a, D: DeserializeOwned + std::fmt::Debug> NotificationStream<'a, D> {
     }
 }
 impl Client {
-    pub async fn repo_get_record<D: DeserializeOwned + std::fmt::Debug>(
-        &mut self,
-        repo: &str,
-        collection: &str,
-        rkey: Option<&str>,
-    ) -> Result<Record<D>, BiskyError> {
-        let mut query = vec![("repo", repo), ("collection", collection)];
+    // pub async fn repo_get_record<D: DeserializeOwned + std::fmt::Debug>(
+    //     &mut self,
+    //     repo: &str,
+    //     collection: &str,
+    //     rkey: Option<&str>,
+    // ) -> Result<Record<D>, BiskyError> {
+    //     let mut query = vec![("repo", repo), ("collection", collection)];
 
-        if let Some(rkey) = rkey {
-            query.push(("rkey", rkey));
-        }
+    //     if let Some(rkey) = rkey {
+    //         query.push(("rkey", rkey));
+    //     }
 
-        self.xrpc_get("com.atproto.repo.getRecord", Some(&query))
-            .await
-    }
+    //     self.xrpc_get("com.atproto.repo.getRecord", Some(&query))
+    //         .await
+    // }
 
     pub async fn repo_list_records<D: DeserializeOwned + std::fmt::Debug>(
         &mut self,
@@ -749,5 +748,23 @@ impl Client {
 
         Ok((followers, response_cursor))
     }
+
+       ///app.bsky.feed.getPostThread
+       pub async fn bsky_get_post_thread(
+        &mut self,
+        uri: &str,
+    ) -> Result<ThreadViewPostEnum, BiskyError> {
+    
+        let query = Vec::from([
+            ("uri", uri),
+        ]);
+
+        let response = self
+            .xrpc_get::<GetPostThreadOutput>("app.bsky.feed.getPostThread", Some(&query))
+            .await?;
+
+        Ok(response.thread)
+    }
+
 
 }

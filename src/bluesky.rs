@@ -1,7 +1,7 @@
 use crate::atproto::{Client, RecordStream, StreamError, NotificationStream};
 use crate::errors::BiskyError;
 use crate::lexicon::app::bsky::actor::{ProfileViewDetailed, ProfileView};
-use crate::lexicon::app::bsky::feed::{Post, GetLikesLike};
+use crate::lexicon::app::bsky::feed::{Post, GetLikesLike, ThreadViewPostEnum};
 use crate::lexicon::app::bsky::notification::{Notification, NotificationRecord, NotificationCount};
 use crate::lexicon::com::atproto::repo::{BlobOutput, CreateRecordOutput, Record};
 use chrono::Utc;
@@ -87,6 +87,10 @@ impl<'a> BlueskyMe<'a> {
     ) -> Result<BlobOutput, BiskyError> {
         self.client.repo_upload_blob(blob, mime_type).await
     }
+
+    pub async fn get_post_thread(&mut self, uri: &str) -> Result<ThreadViewPostEnum,BiskyError>{
+        self.client.bsky_get_post_thread(uri).await
+    }
 }
 pub struct BlueskyUser<'a> {
     client: &'a mut Client,
@@ -132,14 +136,14 @@ impl BlueskyUser<'_> {
         .await
         .map(|l| l.0)
     }
-    pub async fn get_record(&mut self, repo: &str, collection: &str, rkey: &str) -> Result<ProfileViewDetailed, BiskyError> {
-        self.client
-            .xrpc_get(
-                "com.atproto.repo.getRecord",
-                Some(&[("actor", &self.username)]),
-            )
-            .await
-    }
+    // pub async fn get_record(&mut self, repo: &str, collection: &str, rkey: &str) -> Result<ProfileViewDetailed, BiskyError> {
+    //     self.client
+    //         .xrpc_get(
+    //             "com.atproto.repo.getRecord",
+    //             Some(&[("actor", &self.username)]),
+    //         )
+    //         .await
+    // }
 
     pub async fn list_posts(&mut self) -> Result<Vec<Record<Post>>, BiskyError> {
         self.client
