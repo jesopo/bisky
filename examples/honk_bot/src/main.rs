@@ -130,11 +130,6 @@ async fn main() {
                     None => ()
                 };
 
-                // let blob_output = me.upload_blob(&img, "image/jpeg").await.unwrap();
-                // println!("Blob: {:#?}", blob_output.blob);
-                // let image = Image{image:blob_output.blob, alt: "HONK".to_string()};
-                // let images_embed = ImagesEmbed{images: vec!(image)};
-                // let embed = Embeds::Images(images_embed);
                 let roll = rand::thread_rng().gen_range(1..21);
 
                 let msg = match roll{
