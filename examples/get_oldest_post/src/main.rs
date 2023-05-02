@@ -41,8 +41,12 @@ async fn main() {
         .unwrap();
 
     let mut bsky = Bluesky::new(client);
-    let mut user = bsky.user(args.username).unwrap();
+    let mut user = bsky.user(&args.username).unwrap();
     let posts = user.list_posts().await.unwrap();
     println!("Posts\n{:#?}", posts);
+    let oldest_post = posts.last().unwrap();
     println!("oldest post: {:#?}", posts.last().unwrap());
+    // let likes = user.get_likes("at://did:plc:4jfck5rfg4vhzfq5kt2z5wis/app.bsky.feed.post/3ju7d6lfp5i2o", 30, None).await.unwrap();
+    // println!("Likes\n{:#?}", likes);
+    //"at://did:plc:4jfck5rfg4vhzfq5kt2z5wis/app.bsky.feed.post/3ju7d6lfp5i2o"
 }

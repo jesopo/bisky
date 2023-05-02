@@ -42,7 +42,7 @@ async fn main() {
     let blob_output = me.upload_blob(&image, "image/jpeg").await.unwrap();
     println!("Blob: {:#?}", blob_output.blob);
     let image = Image{image:blob_output.blob, alt: "HONK WITH RUST".to_string()};
-    let images_embed = ImagesEmbed{rust_type: "app.bsky.embed.images".to_string(), images: vec!(image)};
+    let images_embed = ImagesEmbed{images: vec!(image)};
     let embed = Embeds::Images(images_embed);
 
     println!(

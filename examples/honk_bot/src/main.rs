@@ -1,18 +1,22 @@
 use bisky::atproto::{Client, ClientBuilder, UserSession};
 use bisky::bluesky::Bluesky;
-use bisky::lexicon::app::bsky::feed::{Post, Embeds, ImagesEmbed};
+use bisky::lexicon::app::bsky::feed::{ImagesEmbed, ReplyRef};
 use bisky::lexicon::app::bsky::embed::{Image};
-use bisky::lexicon::app::bsky::notification::{Notification, NotificationRecord, ListNotificationsOutput};
-
-use bisky::storage::{File, Storage as _};
+use bisky::lexicon::app::bsky::notification::{Notification, NotificationRecord};
+use bisky::lexicon::com::atproto::repo::StrongRef;
+use bisky::lexicon::app::bsky::feed::Post;
+use bisky::lexicon::app::bsky::notification::NotificationRecord::Post as NotificationPost;
+use bisky::lexicon::app::bsky::feed::Embeds;
+use bisky::storage::File;
 use clap::Parser;
 use std::path::PathBuf;
 use url::Url;
 use std::sync::Arc;
 use std::fs;
-use futures::{future, future::BoxFuture, stream, FutureExt, StreamExt}; // 0.3.13
+use futures::{future, stream, StreamExt};
 use std::time::{Duration, Instant};
-use tokio::time; // 1.3.0
+use tokio::time;
+use rand::Rng;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -40,19 +44,12 @@ async fn main() {
 
     let mut client= ClientBuilder::default().session(None).storage(storage).build().unwrap();
     client.login(&args.service, &args.username, &args.password).await;
-    // let mut bsky = Bluesky::new(client);
-    // let mut me = bsky.me().unwrap();
-    let good_text: ListNotificationsOutput<NotificationRecord> = serde_json::from_str("{\"notifications\":[{\"uri\":\"at://did:plc:kzgjymzlya5hezpidllt5tfm/app.bsky.feed.post/3juojivxzg225\",\"cid\":\"bafyreiex6b4cbm5ybrbcuucihan2vrsmxoqmfm46geadwa5v5ap5fkf3yu\",\"author\":{\"did\":\"did:plc:kzgjymzlya5hezpidllt5tfm\",\"handle\":\"mxkoder.bsky.social\",\"displayName\":\"Agnes 🦄🌈👩\u{200d}💻\",\"description\":\"Junior Software Engineer, UK public sector | @commandshift grad / #queertech / like to make things & PC build / opinions my own\\nPronouns: they/them\\n\\nHere for the tech + community 🙌🏻🦄🌈\",\"avatar\":\"https://cdn.bsky.social/imgproxy/9IFcsE__tMbIhAe-kz4_g2hU1HrrMRtzvTa74aQGj68/rs:fill:1000:1000:1:0/plain/bafkreic756qailqftgurfp67or4sgn4xldculpq53hvjacnhtqqvtm2boi@jpeg\",\"indexedAt\":\"2023-04-25T23:23:13.234Z\",\"viewer\":{\"muted\":false,\"blockedBy\":false,\"followedBy\":\"at://did:plc:kzgjymzlya5hezpidllt5tfm/app.bsky.graph.follow/3jua7ddgujt2r\"},\"labels\":[]},\"reason\":\"reply\",\"reasonSubject\":\"at://did:plc:4jfck5rfg4vhzfq5kt2z5wis/app.bsky.feed.post/3juoh4xodkf2n\",\"record\":{\"text\":\"I'm in a wok-obsessed phase, enjoy the cooking!\",\"$type\":\"app.bsky.feed.post\",\"reply\":{\"root\":{\"cid\":\"bafyreicv4ftonbyfxi4u76wp5uup5kmfag7zom3zjo7pxw6kgxzet3kdka\",\"uri\":\"at://did:plc:4jfck5rfg4vhzfq5kt2z5wis/app.bsky.feed.post/3juoh4xodkf2n\"},\"parent\":{\"cid\":\"bafyreicv4ftonbyfxi4u76wp5uup5kmfag7zom3zjo7pxw6kgxzet3kdka\",\"uri\":\"at://did:plc:4jfck5rfg4vhzfq5kt2z5wis/app.bsky.feed.post/3juoh4xodkf2n\"}},\"createdAt\":\"2023-05-01T15:56:30.346Z\"},\"isRead\":true,\"indexedAt\":\"2023-05-01T15:56:30.481Z\",\"labels\":[]}
-    ]}").unwrap();
-    println!("GOOD TEXT");
 
-    let badd_text: ListNotificationsOutput<NotificationRecord> = serde_json::from_str("{\"notifications\":[{\"uri\":\"at://did:plc:xxfojudungpdlyjq3lvrx7by/app.bsky.feed.post/3jukkog7vn322\",\"cid\":\"bafyreia2ebngobny7zaqbd64sgtplozadhmdrxjsfc2v2iscrlymeromle\",\"author\":{\"did\":\"did:plc:xxfojudungpdlyjq3lvrx7by\",\"handle\":\"sleepytrekkie.bsky.social\",\"displayName\":\"Sleepy's Trek 🖖 🫡\",\"description\":\"TW: twitter.com/sleepytrekkie\\nYT: youtube.com/@thesleepycraftsman\\nYT: youtube.com/@thesleepytrekkie \\nFB: facebook.com/TheSleepyCraftsman\\n• Star Trek\\n• SciFi\\n• Technology\\n• Politics\\n• DIY\\n• Xennial\",\"avatar\":\"https://cdn.bsky.social/imgproxy/BQGdAeaj01I2v2WuNh4yf1RrYtUBV6KO4lj0ZavMv2U/rs:fill:1000:1000:1:0/plain/bafkreieiltn6spfdoquueojar6qxrjqe4574qcbgn4q4eeb2ubt4ntdy2u@jpeg\",\"indexedAt\":\"2023-04-30T15:07:02.725Z\",\"viewer\":{\"muted\":false,\"blockedBy\":false},\"labels\":[]},\"reason\":\"reply\",\"reasonSubject\":\"at://did:plc:4jfck5rfg4vhzfq5kt2z5wis/app.bsky.feed.post/3jukkixvlsm2s\",\"record\":{\"text\":\"\",\"$type\":\"app.bsky.feed.post\",\"embed\":{\"$type\":\"app.bsky.embed.images\",\"images\":[{\"alt\":\"\",\"image\":{\"ref\":{\"$link\":\"bafkreiauiod2um35p3q7k6sr6t4qjehuz7fclqcmy76qsvrsjlakzjsiha\"},\"size\":257449,\"$type\":\"blob\",\"mimeType\":\"image/jpeg\"}}]},\"reply\":{\"root\":{\"cid\":\"bafyreig7ox2h5kmcmjukbxfpopy65ggd2ymhbnldcu3fx72ij3c22ods3i\",\"uri\":\"at://did:plc:nx3kofpg4oxmkonqr6su5lw4/app.bsky.feed.post/3juhgsu4tpi2e\"},\"parent\":{\"cid\":\"bafyreiccsmpcpkkdodj4ig2itxq3gazi7idi4ahpuq4cuvmtbekj64jgk4\",\"uri\":\"at://did:plc:4jfck5rfg4vhzfq5kt2z5wis/app.bsky.feed.post/3jukkixvlsm2s\"}},\"createdAt\":\"2023-04-30T02:06:49.728Z\"},\"isRead\":true,\"indexedAt\":\"2023-04-30T02:06:50.059Z\",\"labels\":[]}],\"cursor\":\"1682820410059::bafyreia2ebngobny7zaqbd64sgtplozadhmdrxjsfc2v2iscrlymeromle\"}]}").unwrap();
-    println!("BAD TEXT");
     let now = Instant::now();
     let forever = stream::unfold((), |()| async {
         eprintln!("Bisky Bluesky Bot Starting at {:?}", Instant::now());
 
-        let poll = bot(client.clone());
+        let poll = bot(client.clone(), image.clone());
 
         // Resolves when both the bot() function and a delay of 15 second is done
         future::join(poll, time::sleep(Duration::from_secs(15))).await;
@@ -61,37 +58,108 @@ async fn main() {
     });
 
     /// The command that does everything the bot needs
-    async fn bot(client: Client){
-        println!("Running test");
+    async fn bot(client: Client, img: Vec<u8>){
         let mut bsky = Bluesky::new(client);
         let mut me = bsky.me().unwrap();
-        let notification_count = me.get_notification_count(None).await.unwrap();
-        println!("Notification Count: {:#?}", notification_count);
-        let notifications = me.list_notifications(45).await.unwrap();
-        let mentions =  notifications.into_iter().filter(|n| n.reason == "mention").collect::<Vec<Notification<NotificationRecord>>>();
-        println!("Mentions\n{:#?}", mentions);
-        // println!("Notifications\n{:#?}", notifications.into_iter().filter(|n| n.reason == "follow").collect::<Vec<Notification<NotificationRecord>>>());
+        let notifications = me.list_notifications(10).await.unwrap();
         me.update_seen().await.unwrap();
-     }
+        let mentions =  notifications.into_iter().filter(|n| (n.reason == "mention" && n.is_read == false)).collect::<Vec<Notification<NotificationRecord>>>();
+        if !mentions.is_empty(){
+            println!("Mentions\n{:#?}", mentions);
+        }
 
-    forever.take(15).for_each(|_| async {}).await;
-    eprintln!("Took {:?}", now.elapsed());
-    
-    // let blob_output = me.upload_blob(&image, "image/jpeg").await.unwrap();
-    // println!("Blob: {:#?}", blob_output.blob);
-    // let image = Image{image:blob_output.blob, alt: "HONK WITH RUST".to_string()};
-    // let images_embed = ImagesEmbed{rust_type: "app.bsky.embed.images".to_string(), images: vec!(image)};
-   
-    // bsky
-    //     .me()
-    //     .unwrap()
-    //     .post(Post {
-    //         rust_type: Some("app.bsky.feed.post".to_string()),
-    //         text: args.post_text,
-    //         created_at: chrono::Utc::now(),
-    //         embed: Some(images_embed),
-    //     })
-    //     .await
-    //     .unwrap()
-    
+        for mention in mentions{
+            let uri = mention.uri;
+            let cid = mention.cid;
+            let  (text, reply) = match mention.record{
+                NotificationRecord::Post(p) => (p.text, p.reply),
+                _ => panic!("What are you feeding me Seymore?"),
+            };
+            println!("POSTText {:#?}",text);
+            
+            if text.contains("@benwis.bsky.social /honk"){
+                println!("HONK");
+
+                // As I understand this, if there is no parent(it is the root), then both parent and root uri/cid can be set to the ones in the root of the mention
+                // If reply is Some(), then we'll need the uri/cid of the post from the root for parent, and the uri/cid from reply: root for the root
+                let mut resp_reply_ref = ReplyRef{
+                    parent: StrongRef{uri: uri.clone(), cid: cid.clone()}, 
+                    root: StrongRef{uri, cid},
+                };
+
+                match reply{
+                    Some(r) => {
+                        resp_reply_ref.root.uri = r.root.uri;
+                        resp_reply_ref.root.cid = r.root.cid;
+                        },
+                    None => ()
+                };
+
+                let blob_output = me.upload_blob(&img, "image/jpeg").await.unwrap();
+                println!("Blob: {:#?}", blob_output.blob);
+                let image = Image{image:blob_output.blob, alt: "HONK".to_string()};
+                let images_embed = ImagesEmbed{images: vec!(image)};
+                let embed = Embeds::Images(images_embed);
+        
+                me.post(Post {
+                    rust_type: Some("app.bsky.feed.post".to_string()),
+                    text: "HONK".to_string(),
+                    created_at: chrono::Utc::now(),
+                    embed: Some(embed),
+                    reply: Some(resp_reply_ref),
+                })
+                .await
+                .unwrap();
+
+            }
+            else if text.contains("@benwis.bsky.social /d20"){
+                println!("D20");
+
+                // As I understand this, if there is no parent(it is the root), then both parent and root uri/cid can be set to the ones in the root of the mention
+                // If reply is Some(), then we'll need the uri/cid of the post from the root for parent, and the uri/cid from reply: root for the root
+                let mut resp_reply_ref = ReplyRef{
+                    parent: StrongRef{uri: uri.clone(), cid: cid.clone()}, 
+                    root: StrongRef{uri, cid},
+                };
+
+                match reply{
+                    Some(r) => {
+                        resp_reply_ref.root.uri = r.root.uri;
+                        resp_reply_ref.root.cid = r.root.cid;
+                        },
+                    None => ()
+                };
+
+                // let blob_output = me.upload_blob(&img, "image/jpeg").await.unwrap();
+                // println!("Blob: {:#?}", blob_output.blob);
+                // let image = Image{image:blob_output.blob, alt: "HONK".to_string()};
+                // let images_embed = ImagesEmbed{images: vec!(image)};
+                // let embed = Embeds::Images(images_embed);
+                let roll = rand::thread_rng().gen_range(1..21);
+
+                let msg = match roll{
+                    i32::MIN..=0 => "You have broken the laws of physics! A D20 cannot be negative or 0!",
+                    1 => "You stand in befuddlement, a great deal of time has passed, and you're no closer to accomplishing your goals. You become disheartened, and vow never to attempt it again!",
+                    2..=5 => "You tried your hardest, and with great effort, suddenly fall flat on your face! A small child points and laughs, \"HA HA!\"",
+                    6..=10 => "You see somebody walk by, see you, and then shake their head. They turn around and leave in the opposite direction. You faintly hear them mutter, \"I remember when people had standards...\"",
+                    11..=15 => "A bead of sweat rolls down your forehead, as you behold the fruits of your labor. That'll do, you think to yourself. That'll do.",
+                    16..=19 => "You have skill, and with little effort, accomplish everything you set out to do. In fact, you have time to do more things. Why can't more things go like this?",
+                    20 => "It as if the gods themselves guide your endeavours. Songs could be sung about this work. You have brought great honor to yourself, your family, and your friends. It becomes a legend amonst your friends and community, ",
+                    21_i32..=i32::MAX => "This cannot be! These acts befit a god more than a mortal",
+                };
+        
+                me.post(Post {
+                    rust_type: Some("app.bsky.feed.post".to_string()),
+                    text: format!("You rolled a {roll}.\n{msg}"),
+                    created_at: chrono::Utc::now(),
+                    embed: None,
+                    reply: Some(resp_reply_ref),
+                })
+                .await
+                .unwrap();
+
+            }
+        }
+     }
+     forever.for_each(|_| async {}).await;  
 }

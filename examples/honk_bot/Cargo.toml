@@ -1,5 +1,5 @@
 [package]
-name = "make_post_with_image"
+name = "honk_bot"
 version = "0.1.0"
 edition = "2021"
 
@@ -13,3 +13,4 @@ futures = "0.3.28"
 tokio = { version = "1.27.0", features = ["macros", "rt-multi-thread"] }
 url = "2.3.1"
 serde_json = "1.0.96"
+rand = "0.8.5"
