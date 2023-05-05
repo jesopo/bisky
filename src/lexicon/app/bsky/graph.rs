@@ -17,7 +17,7 @@ pub struct Follow {
 pub struct GetFollowers {
     pub actor: String,
     pub limit: Option<usize>,
-    pub cursor: Option<String>
+    pub cursor: Option<String>,
 }
 
 ///app.bsky.graph.getFollowers
@@ -33,7 +33,7 @@ pub struct GetFollowersOutput {
 pub struct GetFollows {
     pub actor: String,
     pub limit: Option<usize>,
-    pub cursor: Option<String>
+    pub cursor: Option<String>,
 }
 
 ///app.bsky.graph.getFollows

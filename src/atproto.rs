@@ -1,11 +1,13 @@
 use crate::errors::{ApiError, BiskyError};
 use crate::lexicon::app::bsky::actor::ProfileView;
-use crate::lexicon::app::bsky::feed::{GetLikesOutput, GetLikesLike, GetPostThreadOutput, ThreadViewPostEnum};
-use crate::lexicon::app::bsky::graph::{GetFollowsOutput, GetFollowersOutput};
-use crate::lexicon::app::bsky::notification::{ListNotificationsOutput, Notification, UpdateSeen, NotificationCount};
-use crate::lexicon::com::atproto::repo::{
-    CreateRecord,ListRecordsOutput, Record,
+use crate::lexicon::app::bsky::feed::{
+    GetLikesLike, GetLikesOutput, GetPostThreadOutput, ThreadViewPostEnum,
 };
+use crate::lexicon::app::bsky::graph::{GetFollowersOutput, GetFollowsOutput};
+use crate::lexicon::app::bsky::notification::{
+    ListNotificationsOutput, Notification, NotificationCount, UpdateSeen,
+};
+use crate::lexicon::com::atproto::repo::{CreateRecord, ListRecordsOutput, Record};
 use crate::lexicon::com::atproto::server::{CreateUserSession, RefreshUserSession};
 use crate::storage::Storage;
 use chrono::{DateTime, Utc};
@@ -410,11 +412,7 @@ impl<'a, D: DeserializeOwned + std::fmt::Debug> NotificationStream<'a, D> {
             loop {
                 let (notifications, cursor) = self
                     .client
-                    .bsky_list_notifications(
-                        self.limit,
-                        self.seen_at,
-                        Some(self.cursor.as_ref()),
-                    )
+                    .bsky_list_notifications(self.limit, self.seen_at, Some(self.cursor.as_ref()))
                     .await?;
 
                 let mut notifications = VecDeque::from(notifications);
@@ -552,13 +550,9 @@ impl Client {
             query.push(("seen_at", seen_at));
         }
         let res = self
-        .xrpc_get::<NotificationCount>(
-            "app.bsky.notification.getUnreadCount",
-            Some(&query),
-        )
-        .await?;
-    Ok(res)
-
+            .xrpc_get::<NotificationCount>("app.bsky.notification.getUnreadCount", Some(&query))
+            .await?;
+        Ok(res)
     }
 
     pub async fn bsky_list_notifications<D: DeserializeOwned + std::fmt::Debug>(
@@ -607,8 +601,6 @@ impl Client {
             .await
     }
 
-
-
     pub async fn bsky_stream_notifications<'a, D: DeserializeOwned + std::fmt::Debug>(
         &'a mut self,
         seen_at: Option<&'a str>,
@@ -636,16 +628,12 @@ impl Client {
         mut limit: usize,
         cursor: Option<&str>,
     ) -> Result<(Vec<GetLikesLike>, Option<String>), BiskyError> {
-
         let mut likes = Vec::new();
         let mut response_cursor = None;
 
         while limit > 0 {
             let query_limit = std::cmp::min(limit, 100).to_string();
-            let mut query = Vec::from([
-                ("uri", uri),
-                ("limit", query_limit.as_str()),
-            ]);
+            let mut query = Vec::from([("uri", uri), ("limit", query_limit.as_str())]);
 
             if let Some(cursor) = cursor {
                 query.push(("cursor", cursor));
@@ -676,16 +664,12 @@ impl Client {
         mut limit: usize,
         cursor: Option<&str>,
     ) -> Result<(Vec<ProfileView>, Option<String>), BiskyError> {
-
         let mut follows = Vec::new();
-        let mut response_cursor=None;
+        let mut response_cursor = None;
 
         while limit > 0 {
             let query_limit = std::cmp::min(limit, 100).to_string();
-            let mut query = Vec::from([
-                ("actor", actor),
-                ("limit", &query_limit),
-            ]);
+            let mut query = Vec::from([("actor", actor), ("limit", &query_limit)]);
 
             if let Some(cursor) = cursor {
                 query.push(("cursor", cursor));
@@ -716,16 +700,12 @@ impl Client {
         mut limit: usize,
         cursor: Option<&str>,
     ) -> Result<(Vec<ProfileView>, Option<String>), BiskyError> {
-
         let mut followers = Vec::new();
-        let mut response_cursor=None;
+        let mut response_cursor = None;
 
         while limit > 0 {
             let query_limit = std::cmp::min(limit, 100).to_string();
-            let mut query = Vec::from([
-                ("actor", actor),
-                ("limit", &query_limit),
-            ]);
+            let mut query = Vec::from([("actor", actor), ("limit", &query_limit)]);
 
             if let Some(cursor) = cursor.as_ref() {
                 query.push(("cursor", cursor));
@@ -749,15 +729,12 @@ impl Client {
         Ok((followers, response_cursor))
     }
 
-       ///app.bsky.feed.getPostThread
-       pub async fn bsky_get_post_thread(
+    ///app.bsky.feed.getPostThread
+    pub async fn bsky_get_post_thread(
         &mut self,
         uri: &str,
     ) -> Result<ThreadViewPostEnum, BiskyError> {
-    
-        let query = Vec::from([
-            ("uri", uri),
-        ]);
+        let query = Vec::from([("uri", uri)]);
 
         let response = self
             .xrpc_get::<GetPostThreadOutput>("app.bsky.feed.getPostThread", Some(&query))
@@ -765,6 +742,4 @@ impl Client {
 
         Ok(response.thread)
     }
-
-
 }

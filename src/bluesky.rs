@@ -1,8 +1,10 @@
-use crate::atproto::{Client, RecordStream, StreamError, NotificationStream};
+use crate::atproto::{Client, NotificationStream, RecordStream, StreamError};
 use crate::errors::BiskyError;
-use crate::lexicon::app::bsky::actor::{ProfileViewDetailed, ProfileView};
-use crate::lexicon::app::bsky::feed::{Post, GetLikesLike, ThreadViewPostEnum};
-use crate::lexicon::app::bsky::notification::{Notification, NotificationRecord, NotificationCount};
+use crate::lexicon::app::bsky::actor::{ProfileView, ProfileViewDetailed};
+use crate::lexicon::app::bsky::feed::{GetLikesLike, Post, ThreadViewPostEnum};
+use crate::lexicon::app::bsky::notification::{
+    Notification, NotificationCount, NotificationRecord,
+};
 use crate::lexicon::com::atproto::repo::{BlobOutput, CreateRecordOutput, Record};
 use chrono::Utc;
 pub struct Bluesky {
@@ -47,15 +49,13 @@ impl<'a> BlueskyMe<'a> {
             .repo_create_record(&self.username, "app.bsky.feed.post", &post)
             .await
     }
-        /// Get the notifications for the user
+    /// Get the notifications for the user
     ///app.bsky.notification.listNotifications#
     pub async fn get_notification_count(
         &mut self,
         seen_at: Option<&str>,
     ) -> Result<NotificationCount, BiskyError> {
-        self.client
-            .bsky_get_notification_count(seen_at)
-            .await
+        self.client.bsky_get_notification_count(seen_at).await
     }
     /// Get the notifications for the user
     ///app.bsky.notification.listNotifications#
@@ -69,10 +69,10 @@ impl<'a> BlueskyMe<'a> {
             .map(|l| l.0)
     }
 
-    pub async fn stream_notifications(&mut self) -> Result<NotificationStream<Notification<NotificationRecord>>, StreamError> {
-        self.client
-            .bsky_stream_notifications( None)
-            .await
+    pub async fn stream_notifications(
+        &mut self,
+    ) -> Result<NotificationStream<Notification<NotificationRecord>>, StreamError> {
+        self.client.bsky_stream_notifications(None).await
     }
     /// Tell Bsky when the notifications were seen, marking them as old
     pub async fn update_seen(&mut self) -> Result<(), BiskyError> {
@@ -88,7 +88,7 @@ impl<'a> BlueskyMe<'a> {
         self.client.repo_upload_blob(blob, mime_type).await
     }
 
-    pub async fn get_post_thread(&mut self, uri: &str) -> Result<ThreadViewPostEnum,BiskyError>{
+    pub async fn get_post_thread(&mut self, uri: &str) -> Result<ThreadViewPostEnum, BiskyError> {
         self.client.bsky_get_post_thread(uri).await
     }
 }
@@ -106,35 +106,36 @@ impl BlueskyUser<'_> {
             )
             .await
     }
-    pub async fn get_likes(&mut self, uri: &str, limit: usize, cursor: Option<&str>) -> Result<Vec<GetLikesLike>, BiskyError> {
+    pub async fn get_likes(
+        &mut self,
+        uri: &str,
+        limit: usize,
+        cursor: Option<&str>,
+    ) -> Result<Vec<GetLikesLike>, BiskyError> {
         self.client
-            .bsky_get_likes(
-                uri,
-                limit,
-                cursor,
-            )
+            .bsky_get_likes(uri, limit, cursor)
             .await
             .map(|l| l.0)
     }
-    pub async fn get_follows(&mut self, limit: usize, cursor: Option<&str>) -> Result<Vec<ProfileView>, BiskyError> {
+    pub async fn get_follows(
+        &mut self,
+        limit: usize,
+        cursor: Option<&str>,
+    ) -> Result<Vec<ProfileView>, BiskyError> {
         self.client
-            .bsky_get_follows(
-                &self.username,
-                limit,
-                cursor,
-            )
+            .bsky_get_follows(&self.username, limit, cursor)
             .await
             .map(|l| l.0)
     }
-    pub async fn get_followers(&mut self, limit: usize, cursor: Option<&str>) -> Result<Vec<ProfileView>, BiskyError> {
+    pub async fn get_followers(
+        &mut self,
+        limit: usize,
+        cursor: Option<&str>,
+    ) -> Result<Vec<ProfileView>, BiskyError> {
         self.client
-        .bsky_get_followers(
-            &self.username,
-            limit,
-            cursor
-        )
-        .await
-        .map(|l| l.0)
+            .bsky_get_followers(&self.username, limit, cursor)
+            .await
+            .map(|l| l.0)
     }
     // pub async fn get_record(&mut self, repo: &str, collection: &str, rkey: &str) -> Result<ProfileViewDetailed, BiskyError> {
     //     self.client

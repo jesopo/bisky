@@ -1,7 +1,10 @@
+use super::{
+    actor::ProfileView,
+    embed::{External, Image},
+};
 use crate::lexicon::com::atproto::repo::StrongRef;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use super::{embed::{Image, External}, actor::ProfileView};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ImagesEmbed {
@@ -13,17 +16,22 @@ pub struct ImagesEmbed {
 // "app.bsky.embed.record",
 // "app.bsky.embed.recordWithMedia"
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(tag="$type")]
+#[serde(tag = "$type")]
 pub enum Embeds {
-    #[serde(rename(deserialize = "app.bsky.embed.images", serialize = "app.bsky.embed.images"))]
+    #[serde(rename(
+        deserialize = "app.bsky.embed.images",
+        serialize = "app.bsky.embed.images"
+    ))]
     Images(ImagesEmbed),
-    #[serde(rename(deserialize = "app.bsky.embed.external", serialize = "app.bsky.embed.external"))]
+    #[serde(rename(
+        deserialize = "app.bsky.embed.external",
+        serialize = "app.bsky.embed.external"
+    ))]
     External(External),
     #[serde(rename(deserialize = "app.bsky.embed.record"))]
     TodoRecord,
     #[serde(rename(deserialize = "app.bsky.embed.recordWithMedia"))]
     TodoRecordWithMedia,
-
     // Record(Record),
     // #[serde(alias = "app.bsky.embed.recordWithMedia")]
     // RecordWithMedia(RecordWithMedia),
@@ -123,32 +131,31 @@ pub struct GetLikes {
     pub uri: String,
     pub cid: Option<String>,
     pub limit: Option<usize>,
-    pub cursor: Option<String>
+    pub cursor: Option<String>,
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetLikesOutput {
     pub uri: String,
     pub cid: Option<String>,
     pub likes: Vec<GetLikesLike>,
-    pub cursor: Option<String>
+    pub cursor: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ThreadViewPost{
-    pub post: PostView
+pub struct ThreadViewPost {
+    pub post: PostView,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct NotFoundPost{
+pub struct NotFoundPost {
     pub uri: String,
     #[serde(rename(deserialize = "notFound"))]
     pub not_found: bool,
 }
 
-
 #[derive(Debug, Deserialize)]
-#[serde(tag="$type")]
-pub enum ThreadViewPostEnum{
+#[serde(tag = "$type")]
+pub enum ThreadViewPostEnum {
     #[serde(rename(deserialize = "app.bsky.feed.defs#threadViewPost"))]
     ThreadViewPost(ThreadViewPost),
     #[serde(rename(deserialize = "app.bsky.feed.defs#notFoundPost"))]
@@ -164,6 +171,4 @@ pub struct GetPostThread {
 #[derive(Debug, Deserialize)]
 pub struct GetPostThreadOutput {
     pub thread: ThreadViewPostEnum,
-   
 }
-
