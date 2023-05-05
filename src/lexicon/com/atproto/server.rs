@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
-pub struct CreateSession {
+pub struct CreateUserSession {
     pub did: String,
     pub email: String,
     pub handle: String,
@@ -12,7 +12,7 @@ pub struct CreateSession {
 }
 
 #[derive(Deserialize, Serialize)]
-pub struct RefreshSession {
+pub struct RefreshUserSession {
     pub did: String,
     pub handle: String,
     #[serde(rename(deserialize = "accessJwt"))]

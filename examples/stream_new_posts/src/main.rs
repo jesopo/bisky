@@ -1,9 +1,10 @@
-use bisky::atproto::{Client, Session};
+use bisky::atproto::{ClientBuilder, UserSession};
 use bisky::bluesky::Bluesky;
 use bisky::storage::{File, Storage as _};
 use clap::Parser;
 use std::path::PathBuf;
 use url::Url;
+use std::sync::Arc;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -22,15 +23,15 @@ struct Arguments {
 async fn main() {
     let args = Arguments::parse();
 
-    let mut storage = File::<Session>::new(args.storage);
-    if storage.get().await.is_err() {
-        Client::login(&args.service, &args.username, &args.password, &mut storage)
-            .await
-            .unwrap();
-    }
+    let storage = Arc::new(File::<UserSession>::new(args.storage));
+    let mut client= ClientBuilder::default().session(None).storage(storage).build().unwrap();
 
-    let mut client = Bluesky::new(Client::new(args.service, storage).await.unwrap());
-    let mut profile = client.user(args.username);
+    client.login(&args.service, &args.username, &args.password)
+    .await
+    .unwrap();
+
+    let mut bsky = Bluesky::new(client);
+    let mut profile = bsky.user(args.username).unwrap();
     let mut stream = profile.stream_posts().await.unwrap();
 
     while let Ok(record) = stream.next().await {

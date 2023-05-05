@@ -1,6 +1,5 @@
-use bisky::atproto::{Client, ClientBuilder, UserSession};
+use bisky::atproto::{ClientBuilder, UserSession};
 use bisky::bluesky::Bluesky;
-use bisky::lexicon::app::bsky::feed::Post;
 use bisky::storage::{File, Storage as _};
 use clap::Parser;
 use std::path::PathBuf;
@@ -18,8 +17,6 @@ struct Arguments {
     username: String,
     #[clap(index = 4)]
     password: String,
-    #[clap(index = 5)]
-    post_text: String,
 }
 
 #[tokio::main]
@@ -27,21 +24,17 @@ async fn main() {
     let args = Arguments::parse();
 
     let storage = Arc::new(File::<UserSession>::new(args.storage));
-
     let mut client= ClientBuilder::default().session(None).storage(storage).build().unwrap();
-    client.login(&args.service, &args.username, &args.password).await;
-    let mut bsky = Bluesky::new(client);
 
-    println!(
-        "{:#?}",
-        bsky
-            .me()
-            .unwrap()
-            .post(Post {
-                text: args.post_text,
-                created_at: chrono::Utc::now(),
-            })
-            .await
-            .unwrap()
-    );
+    client.login(&args.service, &args.username, &args.password)
+    .await
+    .unwrap();
+
+    let mut bsky = Bluesky::new(client);
+    let mut profile = bsky.me().unwrap();
+    let mut stream = profile.stream_notifications().await.unwrap();
+
+    while let Ok(notification) = stream.next().await {
+        println!("{:#?}", notification);
+    }
 }

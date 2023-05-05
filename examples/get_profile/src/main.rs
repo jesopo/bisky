@@ -19,7 +19,7 @@ struct Arguments {
     #[clap(index = 4)]
     password: String,
     #[clap(index = 5)]
-    post_text: String,
+    query: String,
 }
 
 #[tokio::main]
@@ -31,17 +31,15 @@ async fn main() {
     let mut client= ClientBuilder::default().session(None).storage(storage).build().unwrap();
     client.login(&args.service, &args.username, &args.password).await;
     let mut bsky = Bluesky::new(client);
+    let mut user = bsky.user(&args.query).unwrap();
+    let profile = user.get_profile().await.unwrap();
+    println!("Profile: {:#?}", profile);
+    let likes = user.get_likes(100, None).await.unwrap();
+    println!("Likes: {:#?}", likes);
+    let follows = user.get_follows(100, None).await.unwrap();
+    println!("Follows: {:#?}", follows);
+    let followers = user.get_followers(100, None).await.unwrap();
+    println!("Followers: {:#?}", followers);
 
-    println!(
-        "{:#?}",
-        bsky
-            .me()
-            .unwrap()
-            .post(Post {
-                text: args.post_text,
-                created_at: chrono::Utc::now(),
-            })
-            .await
-            .unwrap()
-    );
+
 }
