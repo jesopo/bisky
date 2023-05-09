@@ -1,6 +1,6 @@
-use bisky::firehose::cbor::Body as FirehoseBody;
 use bisky::lexicon::app::bsky::feed::Post;
-use futures::{SinkExt as _, StreamExt as _};
+use bisky::lexicon::com::atproto::sync::SubscribeRepos;
+use futures::StreamExt as _;
 use std::io::Cursor;
 use tokio_tungstenite::tungstenite::protocol::Message;
 use url::Url;
@@ -14,9 +14,10 @@ async fn main() {
     .unwrap();
 
     while let Some(Ok(Message::Binary(message))) = socket.next().await {
-        let (_header, body) = bisky::firehose::cbor::read(&message).unwrap();
+        let (header, body) = bisky::firehose::read(&message).unwrap();
+        println!("{header:?} {}", message.len());
         match body {
-            FirehoseBody::Commit(commit) => {
+            SubscribeRepos::Commit(commit) => {
                 if commit.operations.is_empty() {
                     continue;
                 }
@@ -26,8 +27,8 @@ async fn main() {
                 }
                 if let Some(cid) = operation.cid {
                     let mut car_reader = Cursor::new(commit.blocks);
-                    let _car_header = bisky::firehose::car::read_header(&mut car_reader).unwrap();
-                    let car_blocks = bisky::firehose::car::read_blocks(&mut car_reader).unwrap();
+                    let _car_header = bisky::car::read_header(&mut car_reader).unwrap();
+                    let car_blocks = bisky::car::read_blocks(&mut car_reader).unwrap();
 
                     let record_reader = Cursor::new(car_blocks.get(&cid).unwrap());
                     let post = ciborium::de::from_reader::<Post, _>(record_reader);
