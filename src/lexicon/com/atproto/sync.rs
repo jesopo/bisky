@@ -35,7 +35,16 @@ pub struct SubscribeReposHandle {
     pub time: DateTime<Utc>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct SubscribeReposTombstone {
+    pub did: String,
+    #[serde(rename(deserialize = "seq"))]
+    pub sequence: u64,
+    pub time: DateTime<Utc>,
+}
+
 pub enum SubscribeRepos {
     Commit(SubscribeReposCommit),
     Handle(SubscribeReposHandle),
+    Tombstone(SubscribeReposTombstone),
 }

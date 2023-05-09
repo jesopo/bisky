@@ -1,6 +1,4 @@
-use crate::lexicon::com::atproto::sync::{
-    SubscribeRepos, SubscribeReposCommit, SubscribeReposHandle,
-};
+use crate::lexicon::com::atproto::sync::SubscribeRepos;
 use serde::Deserialize;
 use std::io::Cursor;
 
@@ -35,14 +33,9 @@ pub fn read(data: &[u8]) -> Result<(Header, SubscribeRepos), Error> {
 
     let header = ciborium::de::from_reader::<Header, _>(&mut reader)?;
     let body = match header.type_.as_str() {
-        "#commit" => SubscribeRepos::Commit(serde_ipld_dagcbor::from_reader::<
-            SubscribeReposCommit,
-            _,
-        >(&mut reader)?),
-        "#handle" => SubscribeRepos::Handle(serde_ipld_dagcbor::from_reader::<
-            SubscribeReposHandle,
-            _,
-        >(&mut reader)?),
+        "#commit" => SubscribeRepos::Commit(serde_ipld_dagcbor::from_reader(&mut reader)?),
+        "#handle" => SubscribeRepos::Handle(serde_ipld_dagcbor::from_reader(&mut reader)?),
+        "#tombstone" => SubscribeRepos::Handle(serde_ipld_dagcbor::from_reader(&mut reader)?),
         _ => unreachable!(),
     };
 
