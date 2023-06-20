@@ -76,7 +76,6 @@ pub struct PutRecord<T> {
     pub record: T,
     /// Compare and swap with the previous record by cid.
     #[serde(rename = "swapRecord")]
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub swap_record: Option<String>,
     /// Compare and swap with the previous commit by cid.
     #[serde(rename = "swapCommit")]
