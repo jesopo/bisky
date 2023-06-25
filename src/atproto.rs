@@ -1,16 +1,7 @@
 use crate::errors::{ApiError, BiskyError};
-use crate::lexicon::app::bsky::actor::ProfileView;
-use crate::lexicon::app::bsky::feed::{
-    GetLikesLike, GetLikesOutput, GetPostThreadOutput, ThreadViewPostEnum,
-};
-use crate::lexicon::app::bsky::graph::{GetFollowersOutput, GetFollowsOutput};
-use crate::lexicon::app::bsky::notification::{
-    ListNotificationsOutput, Notification, NotificationCount, UpdateSeen,
-};
 use crate::lexicon::com::atproto::repo::{CreateRecord, ListRecordsOutput, Record};
 use crate::lexicon::com::atproto::server::{CreateUserSession, RefreshUserSession};
 use crate::storage::Storage;
-use chrono::{DateTime, Utc};
 use derive_builder::Builder;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
@@ -172,12 +163,6 @@ impl Client {
         let session = response.into();
         self.update_session(Some(session)).await?;
 
-        // if let Err(e) = self.storage.set(&session).await {
-        //     Err(RefreshError::Storage(e))
-        // } else {
-        //     self.session = session;
-        //     Ok(())
-        // }
         Ok(())
     }
 
@@ -213,13 +198,8 @@ impl Client {
                 return Err(BiskyError::ApiError(error));
             }
         }
-        // let text: String = response.error_for_status()?.text().await?;
-        // println!("Text\n\n{:#?}\n\n", text);
-        // let json = serde_json::from_str(&text)?;
 
-        let json: D = response.error_for_status()?.json().await?;
-        // println!("Response\n\n{:#?}\n\n", json);
-        Ok(json)
+        Ok(response.error_for_status()?.json().await?)
     }
 
     pub(crate) async fn xrpc_post<D1: Serialize, D2: DeserializeOwned>(
@@ -234,15 +214,11 @@ impl Client {
             path: &str,
             body: &str,
         ) -> Result<reqwest::RequestBuilder, BiskyError> {
-            println!("BODY: {:#?}", body);
-
             let req = reqwest::Client::new()
                 .post(self_.get_service().join(&format!("xrpc/{path}")).unwrap())
                 .header("content-type", "application/json")
                 .header("authorization", format!("Bearer {}", self_.access_token()?))
                 .body(body.to_string());
-
-            println!("REQ: {:#?}", req);
             Ok(req)
         }
 
@@ -257,12 +233,8 @@ impl Client {
                 return Err(BiskyError::ApiError(error));
             }
         }
-        let text: String = response.error_for_status()?.text().await?;
-        println!("Text\n\n{:#?}\n\n", text);
-        let json = serde_json::from_str(&text)?;
-        // let json = response.error_for_status()?.json::<D2>().await?;
-
-        Ok(json)
+        let text = response.error_for_status()?.text().await?;
+        Ok(serde_json::from_str(&text)?)
     }
 
     pub(crate) async fn xrpc_post_binary<D2: DeserializeOwned>(
@@ -295,12 +267,8 @@ impl Client {
                 return Err(BiskyError::ApiError(error));
             }
         }
-        let text: String = response.error_for_status()?.text().await?;
-        println!("Text\n\n{:#?}\n\n", text);
-        let json = serde_json::from_str(&text)?;
-        // let json = response.error_for_status()?.json::<D2>().await?;
-
-        Ok(json)
+        let text = response.error_for_status()?.text().await?;
+        Ok(serde_json::from_str(&text)?)
     }
     pub(crate) async fn xrpc_post_no_response<D1: Serialize>(
         &mut self,
@@ -395,60 +363,7 @@ impl<'a, D: DeserializeOwned + std::fmt::Debug> RecordStream<'a, D> {
     }
 }
 
-pub struct NotificationStream<'a, D: DeserializeOwned> {
-    client: &'a mut Client,
-    limit: usize,
-    seen_at: Option<&'a str>,
-    // collection: &'a str,
-    queue: VecDeque<Notification<D>>,
-    cursor: String,
-}
-
-impl<'a, D: DeserializeOwned + std::fmt::Debug> NotificationStream<'a, D> {
-    pub async fn next(&mut self) -> Result<Notification<D>, StreamError> {
-        if let Some(notification) = self.queue.pop_front() {
-            Ok(notification)
-        } else {
-            loop {
-                let (notifications, cursor) = self
-                    .client
-                    .bsky_list_notifications(self.limit, self.seen_at, Some(self.cursor.as_ref()))
-                    .await?;
-
-                let mut notifications = VecDeque::from(notifications);
-                if let Some(first_notification) = notifications.pop_front() {
-                    if let Some(cursor) = cursor {
-                        self.cursor = cursor;
-                    } else {
-                        return Err(StreamError::NoCursor);
-                    }
-
-                    self.queue.append(&mut notifications);
-                    return Ok(first_notification);
-                } else {
-                    tokio::time::sleep(Duration::from_secs(15)).await;
-                }
-            }
-        }
-    }
-}
 impl Client {
-    // pub async fn repo_get_record<D: DeserializeOwned + std::fmt::Debug>(
-    //     &mut self,
-    //     repo: &str,
-    //     collection: &str,
-    //     rkey: Option<&str>,
-    // ) -> Result<Record<D>, BiskyError> {
-    //     let mut query = vec![("repo", repo), ("collection", collection)];
-
-    //     if let Some(rkey) = rkey {
-    //         query.push(("rkey", rkey));
-    //     }
-
-    //     self.xrpc_get("com.atproto.repo.getRecord", Some(&query))
-    //         .await
-    // }
-
     pub async fn repo_list_records<D: DeserializeOwned + std::fmt::Debug>(
         &mut self,
         repo: &str,
@@ -538,208 +453,5 @@ impl Client {
         } else {
             Err(StreamError::NoCursor)
         }
-    }
-    /// Get the user's notification count. Can take a date to mark them as seen
-    pub async fn bsky_get_notification_count(
-        &mut self,
-        seen_at: Option<&str>,
-    ) -> Result<NotificationCount, BiskyError> {
-        let mut query = Vec::new();
-
-        if let Some(seen_at) = seen_at {
-            query.push(("seen_at", seen_at));
-        }
-        let res = self
-            .xrpc_get::<NotificationCount>("app.bsky.notification.getUnreadCount", Some(&query))
-            .await?;
-        Ok(res)
-    }
-
-    pub async fn bsky_list_notifications<D: DeserializeOwned + std::fmt::Debug>(
-        &mut self,
-        mut limit: usize,
-        seen_at: Option<&str>,
-        cursor: Option<&str>,
-    ) -> Result<(Vec<Notification<D>>, Option<String>), BiskyError> {
-        let mut notifications = Vec::new();
-        let mut response_cursor = None;
-
-        while limit > 0 {
-            let query_limit = std::cmp::min(limit, 100).to_string();
-            let mut query = Vec::from([("limit", query_limit.as_ref())]);
-
-            if let Some(cursor) = cursor {
-                query.push(("cursor", cursor));
-            }
-            if let Some(seen_at) = seen_at {
-                query.push(("seenAt", seen_at));
-            }
-
-            let mut response = self
-                .xrpc_get::<ListNotificationsOutput<D>>(
-                    "app.bsky.notification.listNotifications",
-                    Some(&query),
-                )
-                .await?;
-
-            if response.notifications.is_empty() {
-                // caller requested more records than are available
-                break;
-            }
-
-            limit -= response.notifications.len();
-
-            response_cursor = response.cursor.take();
-            notifications.append(&mut response.notifications);
-        }
-
-        Ok((notifications, response_cursor))
-    }
-
-    pub async fn bsky_update_seen(&mut self, seen_at: DateTime<Utc>) -> Result<(), BiskyError> {
-        self.xrpc_post_no_response("app.bsky.notification.updateSeen", &UpdateSeen { seen_at })
-            .await
-    }
-
-    pub async fn bsky_stream_notifications<'a, D: DeserializeOwned + std::fmt::Debug>(
-        &'a mut self,
-        seen_at: Option<&'a str>,
-    ) -> Result<NotificationStream<'a, D>, StreamError> {
-        let (_, cursor) = self
-            .bsky_list_notifications::<D>(usize::MAX, seen_at, None)
-            .await?;
-
-        if let Some(cursor) = cursor {
-            Ok(NotificationStream {
-                client: self,
-                queue: VecDeque::new(),
-                cursor,
-                limit: usize::MAX,
-                seen_at,
-            })
-        } else {
-            Err(StreamError::NoCursor)
-        }
-    }
-    ///app.bsky.feed.getLikes
-    pub async fn bsky_get_likes(
-        &mut self,
-        uri: &str,
-        mut limit: usize,
-        cursor: Option<&str>,
-    ) -> Result<(Vec<GetLikesLike>, Option<String>), BiskyError> {
-        let mut likes = Vec::new();
-        let mut response_cursor = None;
-
-        while limit > 0 {
-            let query_limit = std::cmp::min(limit, 100).to_string();
-            let mut query = Vec::from([("uri", uri), ("limit", query_limit.as_str())]);
-
-            if let Some(cursor) = cursor {
-                query.push(("cursor", cursor));
-            }
-
-            let mut response = self
-                .xrpc_get::<GetLikesOutput>("app.bsky.feed.getLikes", Some(&query))
-                .await?;
-
-            if response.likes.is_empty() {
-                // caller requested more records than are available
-                break;
-            }
-
-            limit -= response.likes.len();
-
-            response_cursor = response.cursor.take();
-            likes.append(&mut response.likes);
-        }
-
-        Ok((likes, response_cursor))
-    }
-
-    ///app.bsky.graph.getFollows
-    pub async fn bsky_get_follows(
-        &mut self,
-        actor: &str,
-        mut limit: usize,
-        cursor: Option<&str>,
-    ) -> Result<(Vec<ProfileView>, Option<String>), BiskyError> {
-        let mut follows = Vec::new();
-        let mut response_cursor = None;
-
-        while limit > 0 {
-            let query_limit = std::cmp::min(limit, 100).to_string();
-            let mut query = Vec::from([("actor", actor), ("limit", &query_limit)]);
-
-            if let Some(cursor) = cursor {
-                query.push(("cursor", cursor));
-            }
-
-            let mut response = self
-                .xrpc_get::<GetFollowsOutput>("app.bsky.graph.getFollows", Some(&query))
-                .await?;
-
-            if response.follows.is_empty() {
-                // caller requested more records than are available
-                break;
-            }
-
-            limit -= response.follows.len();
-
-            response_cursor = response.cursor.take();
-            follows.append(&mut response.follows);
-        }
-
-        Ok((follows, response_cursor))
-    }
-
-    ///app.bsky.graph.getFollowers
-    pub async fn bsky_get_followers(
-        &mut self,
-        actor: &str,
-        mut limit: usize,
-        cursor: Option<&str>,
-    ) -> Result<(Vec<ProfileView>, Option<String>), BiskyError> {
-        let mut followers = Vec::new();
-        let mut response_cursor = None;
-
-        while limit > 0 {
-            let query_limit = std::cmp::min(limit, 100).to_string();
-            let mut query = Vec::from([("actor", actor), ("limit", &query_limit)]);
-
-            if let Some(cursor) = cursor.as_ref() {
-                query.push(("cursor", cursor));
-            }
-
-            let mut response = self
-                .xrpc_get::<GetFollowersOutput>("app.bsky.graph.getFollowers", Some(&query))
-                .await?;
-
-            if response.followers.is_empty() {
-                // caller requested more records than are available
-                break;
-            }
-
-            limit -= response.followers.len();
-
-            response_cursor = response.cursor.take();
-            followers.append(&mut response.followers);
-        }
-
-        Ok((followers, response_cursor))
-    }
-
-    ///app.bsky.feed.getPostThread
-    pub async fn bsky_get_post_thread(
-        &mut self,
-        uri: &str,
-    ) -> Result<ThreadViewPostEnum, BiskyError> {
-        let query = Vec::from([("uri", uri)]);
-
-        let response = self
-            .xrpc_get::<GetPostThreadOutput>("app.bsky.feed.getPostThread", Some(&query))
-            .await?;
-
-        Ok(response.thread)
     }
 }
