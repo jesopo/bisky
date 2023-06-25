@@ -56,7 +56,7 @@ impl From<RefreshUserSession> for UserSession {
         }
     }
 }
-pub trait StorableSession: Storage<UserSession, Error = BiskyError> {}
+pub trait StorableSession: Storage<UserSession, Error = BiskyError> + Send + Sync {}
 
 #[derive(Clone, Builder)]
 pub struct Client {
