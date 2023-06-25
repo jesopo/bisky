@@ -234,7 +234,7 @@ impl Client {
             path: &str,
             body: &str,
         ) -> Result<reqwest::RequestBuilder, BiskyError> {
-            println!("BODY: {:#?}", body);
+            // println!("BODY: {:#?}", body);
 
             let req = reqwest::Client::new()
                 .post(self_.get_service().join(&format!("xrpc/{path}")).unwrap())
@@ -242,7 +242,7 @@ impl Client {
                 .header("authorization", format!("Bearer {}", self_.access_token()?))
                 .body(body.to_string());
 
-            println!("REQ: {:#?}", req);
+            // println!("REQ: {:#?}", req);
             Ok(req)
         }
 
@@ -258,7 +258,7 @@ impl Client {
             }
         }
         let text: String = response.error_for_status()?.text().await?;
-        println!("Text\n\n{:#?}\n\n", text);
+        // println!("Text\n\n{:#?}\n\n", text);
         let json = serde_json::from_str(&text)?;
         // let json = response.error_for_status()?.json::<D2>().await?;
 
@@ -296,7 +296,7 @@ impl Client {
             }
         }
         let text: String = response.error_for_status()?.text().await?;
-        println!("Text\n\n{:#?}\n\n", text);
+        // println!("Text\n\n{:#?}\n\n", text);
         let json = serde_json::from_str(&text)?;
         // let json = response.error_for_status()?.json::<D2>().await?;
 
