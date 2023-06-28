@@ -57,3 +57,35 @@ pub struct Blob {
 pub struct BlobOutput {
     pub blob: Blob,
 }
+
+/// com.atproto.repo.putRecord
+#[derive(Debug, Serialize)]
+pub struct PutRecord<T> {
+    /// The handle or DID of the repo.
+    pub repo: String,
+    /// The NSID of the record collection.
+    pub collection: String,
+    /// The key of the record.
+    /// max length of 15
+    pub rkey: String,
+    /// Validate the record?
+    /// default: true
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub validate: Option<bool>,
+    /// The record to write
+    pub record: T,
+    /// Compare and swap with the previous record by cid.
+    #[serde(rename = "swapRecord")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub swap_record: Option<String>,
+    /// Compare and swap with the previous commit by cid.
+    #[serde(rename = "swapCommit")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub swap_commit: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PutRecordOutput {
+    pub uri: String,
+    pub cid: String,
+}
