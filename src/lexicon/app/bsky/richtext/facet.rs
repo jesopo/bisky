@@ -18,5 +18,5 @@ pub enum Features {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Facet {
     pub index: ByteSlice,
-    features: Features,
+    pub features: Features,
 }

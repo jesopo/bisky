@@ -220,7 +220,7 @@ pub enum SkeletonFeedPostReason {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct SkeletonReasonRepost {
     /// format: at-uri
-    repost: String,
+    pub repost: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
