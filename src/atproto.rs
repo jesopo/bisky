@@ -1,5 +1,7 @@
 use crate::errors::{ApiError, BiskyError};
-use crate::lexicon::com::atproto::repo::{CreateRecord, ListRecordsOutput, Record};
+use crate::lexicon::com::atproto::repo::{
+    CreateRecord, ListRecordsOutput, PutRecord, PutRecordOutput, Record,
+};
 use crate::lexicon::com::atproto::server::{CreateUserSession, RefreshUserSession};
 use crate::storage::Storage;
 use derive_builder::Builder;
@@ -453,5 +455,31 @@ impl Client {
         } else {
             Err(StreamError::NoCursor)
         }
+    }
+
+    /// com.atproto.repo.putRecord
+    pub async fn repo_put_record<T: Serialize>(
+        &mut self,
+        repo: String,
+        collection: String,
+        rkey: String,
+        record: T,
+        validate: Option<bool>,
+        swap_record: Option<String>,
+        swap_commit: Option<String>,
+    ) -> Result<PutRecordOutput, BiskyError> {
+        self.xrpc_post(
+            "com.atproto.repo.putRecord",
+            &PutRecord {
+                repo,
+                collection,
+                rkey,
+                validate,
+                record,
+                swap_record,
+                swap_commit,
+            },
+        )
+        .await
     }
 }
