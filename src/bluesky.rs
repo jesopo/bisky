@@ -2,7 +2,8 @@ use crate::atproto::{Client, RecordStream, StreamError};
 use crate::errors::BiskyError;
 use crate::lexicon::app::bsky::actor::{ProfileView, ProfileViewDetailed};
 use crate::lexicon::app::bsky::feed::{
-    GetLikesLike, GetLikesOutput, GetPostThreadOutput, Post, ThreadViewPostEnum,
+    DescribeFeedGeneratorOutput, GetFeedGeneratorOutput, GetFeedSkeletonOutput, GetLikesLike,
+    GetLikesOutput, GetPostThreadOutput, Post, ThreadViewPostEnum,
 };
 use crate::lexicon::app::bsky::graph::{GetFollowersOutput, GetFollowsOutput};
 use crate::lexicon::app::bsky::notification::{
@@ -253,6 +254,54 @@ impl Bluesky {
 
         Ok(response.thread)
     }
+    /// app.bsky.feed.describeFeedGenerator
+    pub async fn bsky_describe_feed_generator(
+        &mut self,
+    ) -> Result<DescribeFeedGeneratorOutput, BiskyError> {
+        let response = self
+            .client
+            .xrpc_get("app.bsky.feed.describeFeedGenerator", None)
+            .await?;
+
+        Ok(response)
+    }
+
+    /// app.bsky.feed.getFeedSkeleton
+    pub async fn bsky_get_feed_skeleton(
+        &mut self,
+        feed: &str,
+        limit: Option<usize>,
+        cursor: Option<&str>,
+    ) -> Result<GetFeedSkeletonOutput, BiskyError> {
+        let mut query = Vec::from([("feed", feed)]);
+        let limit_str = limit.map(|l| l.to_string());
+        if let Some(limit) = limit_str.as_ref() {
+            query.push(("limit", limit));
+        }
+        if let Some(cursor) = cursor {
+            query.push(("cursor", cursor));
+        }
+        let response = self
+            .client
+            .xrpc_get("app.bsky.feed.getFeedSkeleton", Some(&query))
+            .await?;
+
+        Ok(response)
+    }
+
+    /// app.bsky.feed.getFeedGenerator
+    pub async fn bsky_get_feed_generator(
+        &mut self,
+        feed: &str,
+    ) -> Result<GetFeedGeneratorOutput, BiskyError> {
+        let query = Vec::from([("feed", feed)]);
+        let response = self
+            .client
+            .xrpc_get("app.bsky.feed.getFeedGenerator", Some(&query))
+            .await?;
+
+        Ok(response)
+    }
 }
 
 pub struct BlueskyMe<'a> {
@@ -376,6 +425,23 @@ impl BlueskyUser<'_> {
         self.client
             .client
             .repo_stream_records(&self.username, "app.bsky.feed.post")
+            .await
+    }
+
+    pub async fn describe_feed_generator(
+        &mut self,
+    ) -> Result<DescribeFeedGeneratorOutput, BiskyError> {
+        self.client.bsky_describe_feed_generator().await
+    }
+
+    pub async fn get_feed_skeleton(
+        &mut self,
+        feed: &str,
+        limit: Option<usize>,
+        cursor: Option<&str>,
+    ) -> Result<GetFeedSkeletonOutput, BiskyError> {
+        self.client
+            .bsky_get_feed_skeleton(feed, limit, cursor)
             .await
     }
 }
